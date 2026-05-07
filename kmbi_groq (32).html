@@ -1,0 +1,3690 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"><title>K-MBI Smart AI Scoring Assistant</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"><script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script><style>*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}html,body{max-width:100vw;overflow-x:hidden;background:#f5f7fa;font-family:Pretendard,"Noto Sans KR",sans-serif}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Pretendard,sans-serif;color:#666;flex-direction:column;gap:12px"><div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#3b82f6;border-radius:50%;animation:spin 0.8s linear infinite"></div><div>로딩 중...</div></div></div><script>
+const{useState,useEffect,useRef}=React;
+const FLOW_COMMENTS = {
+  "1_5": "양치·세면·면도·머리빗기 모두 독립 수행",
+  "1_4": "준비 도움만으로 위생 전 과정 독립 수행",
+  "1_3": "감독 또는 간헐적 도움으로 대부분 수행",
+  "1_2": "부분 수행 가능하나 전반적 도움 필요",
+  "1_1": "최소 참여만 가능, 대부분 도움 의존",
+  "1_0": "전혀 수행 불가, 완전 도움 필요",
+  "2_5": "보조기구 포함 목욕 전 과정 독립 수행",
+  "2_4": "최소 준비 도움만으로 목욕 독립 수행",
+  "2_3": "부분 도움으로 수행, 참여가 도움보다 많음",
+  "2_2": "상당한 도움 필요, 일부 세척만 참여",
+  "2_1": "가슴·팔 일부만 참여 가능, 나머지 도움 의존",
+  "2_0": "목욕 전 과정 완전 도움 필요",
+  "3_10": "음식 차려지면 식사 전 과정 독립 수행",
+  "3_8": "보조도구 사용하여 독립 식사 가능",
+  "3_5": "감독 또는 부분 도움으로 식사 수행",
+  "3_2": "식사 준비 어렵고 섭취에도 상당한 도움 필요",
+  "3_0": "식사 전 과정 완전 도움 또는 경관영양",
+  "4_10": "화장실 이동·의복·뒤처리 모두 독립",
+  "4_8": "최소 도움 또는 보조도구로 독립 수행",
+  "4_5": "간헐적 도움으로 대부분 수행 가능",
+  "4_2": "의복 관리·뒤처리 등 부분 도움 필요",
+  "4_0": "용변처리 전 과정 완전 도움 필요",
+  "5_10": "1층 계단 보조기구 없이 안전하게 독립",
+  "5_8": "보조기구 사용하여 계단 독립 이동",
+  "5_5": "감독 또는 최소 도움으로 계단 오르내림",
+  "5_2": "상당한 도움 필요하나 계단 이용 가능",
+  "5_0": "계단 이동 불가, 완전 도움 또는 미사용",
+  "6_10": "모든 의복 착탈의 독립 수행",
+  "6_8": "보조도구·간단한 의류로 대부분 독립",
+  "6_5": "부분 도움으로 수행, 참여가 도움보다 많음",
+  "6_2": "상당한 도움 필요, 일부 동작만 참여",
+  "6_0": "착탈의 전 과정 완전 도움 필요",
+  "7_10": "배변 완전 독립, 실변 없음",
+  "7_8": "간헐적 실변 또는 도구 사용 필요",
+  "7_5": "주 1회 미만 실변, 도움 간헐적 필요",
+  "7_2": "빈번한 실변, 상당한 도움 필요",
+  "7_0": "배변 조절 불가, 완전 의존",
+  "8_10": "배뇨 완전 독립, 실뇨 없음",
+  "8_8": "간헐적 실뇨 또는 도구 사용 필요",
+  "8_5": "주 1회 미만 실뇨, 간헐적 도움 필요",
+  "8_2": "빈번한 실뇨, 상당한 도움 필요",
+  "8_0": "배뇨 조절 불가, 완전 의존",
+  "9_15": "45m 이상 독립 보행, 보조기구 포함",
+  "9_12": "보조기구 사용하여 독립 보행 가능",
+  "9_8": "감독 또는 최소 도움으로 보행 가능",
+  "9_3": "수동 휠체어 독립 조작 45m 이상",
+  "9_0": "보행 불가, 완전 이동 도움 필요",
+  "9wc_5": "휠체어 독립 조작, 이동 자유로움",
+  "9wc_4": "최소 도움 또는 감독으로 조작 가능",
+  "9wc_3": "부분 도움으로 조작 가능",
+  "9wc_2": "상당한 도움 필요하나 참여 있음",
+  "9wc_1": "최소 참여만 가능, 대부분 도움 의존",
+  "9wc_0": "완전 도움 필요",
+  "10_15": "침대-의자 이동 완전 독립 수행",
+  "10_12": "최소 감독으로 안전하게 이동",
+  "10_8": "부분 도움으로 이동 가능",
+  "10_3": "상당한 도움 필요하나 앉기 가능",
+  "10_0": "이동 불가, 완전 도움 또는 리프트 필요",
+};
+const ITEMS = [{
+  id: 1,
+  kr: "개인위생",
+  en: "Personal Hygiene",
+  icon: "🪥",
+  maxPts: 5,
+  acts: [{
+    name: "양치하기",
+    subs: ["준비 (치약 짜기)", "수도꼭지 조작", "칫솔질하기", "입 헹구기", "정리"]
+  }, {
+    name: "세수하기",
+    subs: ["준비", "수도꼭지 조작", "세수하기", "수건으로 닦기", "정리"]
+  }, {
+    name: "손 씻기",
+    subs: ["수도꼭지 조작", "손 닦기", "손 말리기"]
+  }, {
+    name: "머리 빗기",
+    subs: ["준비 (거울, 빗)", "앞·옆·뒷머리 빗기", "정리"]
+  }, {
+    name: "면도하기 (남)",
+    subs: ["준비 (날 고정, 플러그 조작)", "수도꼭지 조작", "거품 내기", "수염 깎기", "정리"]
+  }, {
+    name: "화장하기 (여)",
+    subs: ["준비", "순서에 맞게 화장", "지우기", "정리"]
+  }, {
+    name: "의치 관리",
+    subs: ["준비 (소독액, 보관함)", "의치 착·탈", "의치 소독", "정리 (보관)"]
+  }, {
+    name: "손톱 관리",
+    subs: ["준비", "손톱 깎기", "정리 (손톱 포함)"]
+  }],
+  scores: [{
+    pts: 5,
+    label: "독립 수행",
+    desc: "구강관리·세면·면도(또는 화장)·머리빗기를 모두 안전하게 독립 수행. 면도날 장착·플러그 연결 등 스스로 해결",
+    note: "남자 면도, 여자 화장 수행 여부 평가"
+  }, {
+    pts: 4,
+    label: "최소 도움",
+    desc: "수행 전·후 최소 도움 필요(플러그 연결, 뜨거운 물 다루기 등 안전 준비). 화장 시 약간 도움 필요할 수 있음",
+    note: "안전 준비해주면 스스로 가능, 화장에서만 약간 도움"
+  }, {
+    pts: 3,
+    label: "중등도 도움",
+    desc: "화장하기·한 손 씻기·양치하기·턱밑 수염 깎기·뒷머리 빗기·한 손 말리기 등 1가지 이상 단계에서 일부 도움 필요. 작업 완료를 위한 지속적 힌트 필요",
+    note: "양치·화장·한손 씻기·턱밑 면도·뒷머리 빗기 등 부분 도움"
+  }, {
+    pts: 1,
+    label: "최대 도움",
+    desc: "개인위생 모든 단계에서 도움이 필요. 한두 가지는 스스로 할 수도 있으나 돕는 손이 환자 스스로 하는 부분보다 더 많음",
+    note: "대부분 도움 필요"
+  }, {
+    pts: 0,
+    label: "완전 의존",
+    desc: "치아닦기·머리 빗기·손 닦기·세수하기·면도·화장하기에서 완전히 의존적",
+    note: ""
+  }],
+  flow: [{
+    id: "q1",
+    q: "구강관리·세면·면도(또는 화장)·머리단장 등 개인위생 전 과정을 도움 없이 할 수 있습니까?",
+    yes: "5",
+    no: "q2"
+  }, {
+    id: "q2",
+    q: "도움을 받으면 일부라도 수행할 수 있습니까?",
+    yes: "q3",
+    no: "0"
+  }, {
+    id: "q3",
+    q: "수행 전·후 최소 도움(안전 준비, 정리)만으로 수행 가능합니까?",
+    yes: "4",
+    no: "q4"
+  }, {
+    id: "q4",
+    q: "부분 도움 시 환자의 참여가 도움보다 더 많습니까?",
+    yes: "3",
+    no: "1"
+  }]
+}, {
+  id: 2,
+  kr: "목욕하기",
+  en: "Bathing",
+  icon: "🚿",
+  maxPts: 5,
+  acts: [{
+    name: "목욕물품 준비",
+    subs: ["수건·옷 등 준비"]
+  }, {
+    name: "씻기 위한 이동",
+    subs: ["욕실 내부 이동 (욕조·샤워벤치·코모도 등)"]
+  }, {
+    name: "앉기",
+    subs: ["욕조·샤워벤치·코모도 등에 앉기"]
+  }, {
+    name: "씻기 준비",
+    subs: ["수도꼭지 조작", "타올 거품 내기"]
+  }, {
+    name: "비누칠",
+    subs: ["전신 비누칠 (사각지대 포함)"]
+  }, {
+    name: "몸 물기 닦기",
+    subs: ["타올로 전신 닦기"]
+  }, {
+    name: "타올 세척",
+    subs: ["타올 세척하기"]
+  }, {
+    name: "정리하기",
+    subs: ["용품 정리", "욕실 정리"]
+  }],
+  scores: [{
+    pts: 5,
+    label: "독립 수행",
+    desc: "보조도구 또는 환경 변형으로 목욕 전 과정을 스스로 수행. 정상인 대비 2배 이상 시간 소요 가능",
+    note: "보조도구 사용 가능, 2배 시간 허용"
+  }, {
+    pts: 4,
+    label: "최소 도움",
+    desc: "샤워나 목욕을 위한 이동 시, 또는 씻거나 말리는 데 도움 필요. 정상인 대비 3배 이상 시간 소요",
+    note: "감독·재촉·준비 도움으로 가능"
+  }, {
+    pts: 3,
+    label: "중등도 도움",
+    desc: "목욕 모든 단계에서 도움과 지시 필요. 가슴과 팔 부위는 스스로 씻을 수도 있음",
+    note: "힌트·유도·감독·도움 필요"
+  }, {
+    pts: 1,
+    label: "최대 도움",
+    desc: "목욕 전반에 완전히 의존적이거나 몸을 씻고 닦지 못함",
+    note: "가슴·팔 씻기는 가능"
+  }, {
+    pts: 0,
+    label: "완전 의존",
+    desc: "치아닦기·머리 빗기·손 닦기·세수하기·면도·화장하기에서 완전히 의존적",
+    note: ""
+  }],
+  flow: [{
+    id: "q1",
+    q: "보조도구나 환경 변형으로 목욕의 모든 단계를 도움 없이 수행합니까?",
+    yes: "5",
+    no: "q2"
+  }, {
+    id: "q2",
+    q: "도움을 받으면 일부라도 수행할 수 있습니까?",
+    yes: "q3",
+    no: "0"
+  }, {
+    id: "q3",
+    q: "사전 준비 또는 이동 시 감독·재촉만으로 수행 가능합니까?",
+    yes: "4",
+    no: "q4"
+  }, {
+    id: "q4",
+    q: "부분 도움 시 환자의 참여가 도움보다 더 많습니까?",
+    yes: "3",
+    no: "1"
+  }]
+}, {
+  id: 3,
+  kr: "식사하기",
+  en: "Feeding",
+  icon: "🍽️",
+  maxPts: 10,
+  acts: [{
+    name: "의지·보조기 착용",
+    subs: ["식사 전 보조기 착용"]
+  }, {
+    name: "어려운 음식 준비",
+    subs: ["고기·김치 자르기", "생선 바르기", "우유·병뚜껑 열기"]
+  }, {
+    name: "일반 음식 준비",
+    subs: ["차에 우유·설탕 넣기", "소금·후추 뿌리기", "버터 바르기", "국에 밥 말기", "음식 비비기"]
+  }, {
+    name: "옷소매 접기",
+    subs: ["식사 전 옷소매 올리기"]
+  }, {
+    name: "물 붓기·물 마시기",
+    subs: ["컵에 물 따르기", "물 마시기"]
+  }, {
+    name: "식사하기",
+    subs: ["도구 사용 (숟가락·젓가락·포크)", "음식 뜨기", "입에 가져가기", "씹기·삼키기"]
+  }],
+  scores: [{
+    pts: 10,
+    label: "독립 수행",
+    desc: "식탁이 차려지면 먹기 준비활동·도구 사용·먹기 등 모든 면에서 안전하게 독립 수행. 보조도구 사용 가능",
+    note: "손이 미치는 범위에 놓아주면 스스로 식사 가능"
+  }, {
+    pts: 8,
+    label: "최소 도움",
+    desc: "난이도 높은 먹기 준비(생선 바르기, 고기 자르기, 병뚜껑 열기 등)만 해주면 독립적으로 먹을 수 있음. 시간 지연, 피해야 하는 음식 배려 필요",
+    note: "삼킴 위한 음식 조정 배려, 시간 지연"
+  }, {
+    pts: 5,
+    label: "중등도 도움",
+    desc: "일반적인 먹기 준비(밥 말기, 소금·후추 넣기, 버터 바르기 등) 해주면 수행. 속도 조절을 위한 적절한 지시나 격려·감시 필요",
+    note: "속도 조절 지시·격려·감시 필요"
+  }, {
+    pts: 2,
+    label: "최대 도움",
+    desc: "숟가락 같은 식사 도구를 스스로 다룰 수 있으나 식사 동안 누군가 적극적 도움 필요. 숟가락에 음식을 올려주면 입으로 가져갈 수 있음",
+    note: "음식 뜨기 가능, 입에 가져가기 도움 필요"
+  }, {
+    pts: 0,
+    label: "완전 의존",
+    desc: "모든 식사 과정을 전적으로 타인에게 의존. 튜브 영양 시 주입·연결·세척·속도 조절 모두 도움 필요",
+    note: "씹고 삼키기만 가능"
+  }],
+  flow: [{
+    id: "q1",
+    q: "음식이 차려지면 먹기 준비·도구 사용·먹기를 모두 도움 없이 수행합니까?",
+    yes: "10",
+    no: "q2"
+  }, {
+    id: "q2",
+    q: "도움을 받으면 일부라도 수행할 수 있습니까?",
+    yes: "q3",
+    no: "0"
+  }, {
+    id: "q3",
+    q: "난이도 높은 준비(생선·고기 자르기, 병뚜껑 열기 등)만 해주면 독립적으로 먹을 수 있습니까?",
+    yes: "8",
+    no: "q4"
+  }, {
+    id: "q4",
+    q: "일반 먹기 준비를 해주고 속도 감독만 하면 먹을 수 있습니까?",
+    yes: "5",
+    no: "2"
+  }]
+}, {
+  id: 4,
+  kr: "용변처리",
+  en: "Toilet Use",
+  icon: "🚽",
+  maxPts: 10,
+  acts: [{
+    name: "변기 앞에 서기",
+    subs: ["변기 앞 이동 및 위치잡기"]
+  }, {
+    name: "하의 탈의하기",
+    subs: ["바지·속옷 내리기"]
+  }, {
+    name: "변기에 앉기",
+    subs: ["균형 잡기", "앉기"]
+  }, {
+    name: "휴지 준비하기",
+    subs: ["화장지 준비·사용"]
+  }, {
+    name: "변기에서 일어나기",
+    subs: ["균형 잡기", "일어서기"]
+  }, {
+    name: "하의 착용하기",
+    subs: ["바지·속옷 올리기"]
+  }, {
+    name: "회음부 위생",
+    subs: ["앞쪽 닦기", "뒤쪽 닦기"]
+  }, {
+    name: "(한)손 닦기",
+    subs: ["수도꼭지 조작", "비누칠·헹구기"]
+  }, {
+    name: "변기 조작",
+    subs: ["물 내리기"]
+  }, {
+    name: "SCI(휠체어 사용자)",
+    subs: ["휠체어→변기 이동", "하의 탈의", "휴지 준비", "회음부 위생", "하의 착용", "휠체어로 이동"]
+  }],
+  scores: [{
+    pts: 10,
+    label: "독립 수행",
+    desc: "보조장비를 포함하여 정상적인 용변처리 방법으로 모든 과정을 안전하게 수행. 야간 이동변기 사용 가능",
+    note: "이동 변기는 밤에만 사용, 세척 독립"
+  }, {
+    pts: 8,
+    label: "최소 도움",
+    desc: "안전을 위한 감시와 화장지 준비 같은 준비만 해주면 수행 가능. 야간 이동변기 세척에는 도움 필요",
+    note: "변기 위치 알려주기, 화장지 준비 도움"
+  }, {
+    pts: 5,
+    label: "중등도 도움",
+    desc: "무엇이던 한 가지는 확실히 수행 가능(특히 회음부 위생). 손 닦기·옷 추스르기·지퍼 조작 시 이동이나 균형을 위한 감독이나 도움 필요",
+    note: "회음부 위생 독립, 이동·균형 도움"
+  }, {
+    pts: 2,
+    label: "최대 도움",
+    desc: "용변 모든 과정에서 도움 필요. 이동·옷 입고 벗기·화장지 사용·회음부 위생 전반에 큰 도움 필요",
+    note: ""
+  }, {
+    pts: 0,
+    label: "완전 의존",
+    desc: "치아닦기·머리 빗기·손 닦기·세수하기·면도·화장하기에서 완전히 의존적",
+    note: ""
+  }],
+  flow: [{
+    id: "q1",
+    q: "보조장비를 사용하여 용변처리 전 과정을 독립적으로 수행합니까?",
+    yes: "10",
+    no: "q2"
+  }, {
+    id: "q2",
+    q: "도움을 받으면 일부라도 수행할 수 있습니까?",
+    yes: "q3",
+    no: "0"
+  }, {
+    id: "q3",
+    q: "변기 위치 안내나 화장지 준비 정도의 지원만 있으면 스스로 할 수 있습니까?",
+    yes: "8",
+    no: "q4"
+  }, {
+    id: "q4",
+    q: "회음부 위생은 스스로 하고, 이동·균형에만 도움이 필요합니까?",
+    yes: "5",
+    no: "2"
+  }]
+}, {
+  id: 5,
+  kr: "계단 오르내리기",
+  en: "Stair Climbing",
+  icon: "🪜",
+  maxPts: 10,
+  acts: [{
+    name: "계단 오르기",
+    subs: ["12~14개 계단 오르기", "균형 유지"]
+  }, {
+    name: "계단 내려오기",
+    subs: ["12~14개 계단 내려오기", "균형 유지"]
+  }, {
+    name: "보조장비 사용·운반",
+    subs: ["난간 이용", "지팡이·목발 사용", "보조기 스스로 운반"]
+  }],
+  scores: [{
+    pts: 10,
+    label: "독립 수행",
+    desc: "1층 계단(12~14개)을 도움 없이 안전하게 오르내릴 수 있음. 난간·지팡이·목발 등 보조장비 독립 사용",
+    note: "난간·지팡이·목발 등 독립 사용"
+  }, {
+    pts: 8,
+    label: "최소 도움",
+    desc: "스스로 계단을 사용할 수 있으나 근육경직·호흡곤란 등 안전을 위한 감독 필요. 보행보조도구를 스스로 운반",
+    note: "안전 감독, 보행 보조도구 스스로 운반"
+  }, {
+    pts: 5,
+    label: "중등도 도움",
+    desc: "계단을 오르내릴 수 있으나 보행보조기구 운반 시 도움 필요. 수행 시 감독이나 보조 필요",
+    note: "보행 보조기 운반 도움, 감독 필요"
+  }, {
+    pts: 2,
+    label: "최대 도움",
+    desc: "계단 오르내리기에 한 명의 도움(부축)이 필요. 보행보조장비 사용에도 도움 필요",
+    note: "1명 부축 필요"
+  }, {
+    pts: 0,
+    label: "완전 의존",
+    desc: "계단을 오르내릴 수 없음. 2명의 도움이 필요",
+    note: "2명 도움, 계단 이용 불가"
+  }],
+  flow: [{
+    id: "q1",
+    q: "1층 계단을 도움 없이 안전하게 오르내릴 수 있습니까?",
+    yes: "10",
+    no: "q2"
+  }, {
+    id: "q2",
+    q: "계단을 전혀 오르내릴 수 없습니까? (2명의 도움 필요)",
+    yes: "0",
+    no: "q3"
+  }, {
+    id: "q3",
+    q: "혼자 계단 사용 가능하고, 보행 보조도구도 스스로 운반합니까?",
+    yes: "8",
+    no: "q4"
+  }, {
+    id: "q4",
+    q: "계단 오르내리기는 가능하나 보행 보조기 운반에만 도움이 필요합니까?",
+    yes: "5",
+    no: "2"
+  }]
+}, {
+  id: 6,
+  kr: "옷 입고 벗기",
+  en: "Dressing",
+  icon: "👕",
+  maxPts: 10,
+  acts: [{
+    name: "상의 입고 벗기",
+    subs: ["(한)팔 넣기", "여밈장치 조작 (단추·지퍼·브라 여밈)", "(한)팔 빼기"]
+  }, {
+    name: "하의 입고 벗기",
+    subs: ["(한)다리 넣기", "하의 올리기", "하의 내리기·다리 빼기"]
+  }, {
+    name: "양말 입고 벗기",
+    subs: ["양말 꺼내기 (서랍장)", "(한)발 넣고 신기", "(한)발에서 벗기"]
+  }, {
+    name: "신발 신고 벗기",
+    subs: ["신발 꺼내기 (신발장)", "(한)발 넣고 신기", "여밈장치 조작", "신발 벗기"]
+  }, {
+    name: "의지·보조기 착탈",
+    subs: ["의지·보조기 준비 (Body jacket·Splint 등)", "팔·다리 끼우기", "여밈장치 조작 (하네스·벨크로)", "팔·다리 빼기"]
+  }],
+  scores: [{
+    pts: 10,
+    label: "독립 수행",
+    desc: "모든 종류의 옷을 시간 지연 없이 독립적으로 입고 벗을 수 있음. 보조도구 사용 가능",
+    note: "보조도구 사용 가능"
+  }, {
+    pts: 8,
+    label: "최소 도움",
+    desc: "옷을 몸에 끼우고 빼는 동작은 독립. 준비과정 및 지퍼·브래지어·신발 등 고정 및 마무리에 최소 도움 필요. 정상인 대비 3배 이상 소요",
+    note: "시간 3배 이상, 준비·마무리 최소 도움"
+  }, {
+    pts: 5,
+    label: "중등도 도움",
+    desc: "옷 입고 벗기의 1가지 이상 항목에서 일부 도움 필요. 환자가 수행하는 부분이 돕는 손보다 더 많음",
+    note: "부분 도움, 환자 참여 > 도움"
+  }, {
+    pts: 2,
+    label: "최대 도움",
+    desc: "옷 입기 과정에 어느 정도 참여하지만 모든 과정에서 도움 필요. 환자 스스로 하는 부분보다 도움받는 부분이 더 많음",
+    note: "참여는 가능, 모든 활동 도움"
+  }, {
+    pts: 0,
+    label: "완전 의존",
+    desc: "치아닦기·머리 빗기·손 닦기·세수하기·면도·화장하기에서 완전히 의존적",
+    note: ""
+  }],
+  flow: [{
+    id: "q1",
+    q: "모든 종류의 옷을 도움 없이 독립적으로 입고 벗습니까?",
+    yes: "10",
+    no: "q2"
+  }, {
+    id: "q2",
+    q: "도움을 받으면 일부라도 수행할 수 있습니까?",
+    yes: "q3",
+    no: "0"
+  }, {
+    id: "q3",
+    q: "옷 끼우고 빼는 동작은 독립이고, 준비·마무리(지퍼·단추·신발)에만 최소 도움이 필요합니까?",
+    yes: "8",
+    no: "q4"
+  }, {
+    id: "q4",
+    q: "부분 도움 시 환자의 참여가 도움보다 더 많습니까?",
+    yes: "5",
+    no: "2"
+  }]
+}, {
+  id: 7,
+  kr: "배변 조절",
+  en: "Bowel Control",
+  icon: "🧻",
+  maxPts: 10,
+  acts: [{
+    name: "괄약근 조절",
+    subs: ["배변 조절", "실변 유무 확인"]
+  }, {
+    name: "배변 자세 취하기",
+    subs: ["변기에서 자세 취하기", "침상에서 자세 취하기"]
+  }, {
+    name: "회음부 위생",
+    subs: ["비누칠", "헹구기", "건조시키기"]
+  }, {
+    name: "보조도구 사용",
+    subs: ["좌약 삽입", "관장 시행", "손가락 자극", "인공항문 관리", "장 운동 촉진"]
+  }, {
+    name: "실변 대비 보조용품",
+    subs: ["기저귀 교체", "흡수용 패드 교체"]
+  }],
+  scores: [{
+    pts: 10,
+    label: "독립 수행",
+    desc: "실변 없이 배변 조절 항상 가능. 약물·좌약·관장·인공항문 독립 관리",
+    note: "약물·좌약·관장 독립, 인공항문 스스로 관리"
+  }, {
+    pts: 8,
+    label: "최소 도움",
+    desc: "가끔 실변. 규칙적 배변 훈련 재촉·힌트 필요. 좌약·관장 시 감독",
+    note: "규칙적 배변 재촉·힌트, 좌약·관장 감독"
+  }, {
+    pts: 5,
+    label: "중등도 도움",
+    desc: "종종 실변. 배변 자세 취하기 가능. 회음부 뒤처리·세척 도움. 보조기구 사용 도움",
+    note: "배변 자세 가능, 회음부 뒤처리 도움"
+  }, {
+    pts: 2,
+    label: "최대 도움",
+    desc: "종종 실변. 배변 훈련 초기. 자세 취하기·패드 착용 도움 필요",
+    note: "배변 훈련 초기, 자세·패드 도움"
+  }, {
+    pts: 0,
+    label: "완전 의존",
+    desc: "배변 조절 완전 의존. 기저귀·흡수 패드 항시 착용",
+    note: "기저귀·패드 항시 착용"
+  }],
+  flow: [{
+    id: "q1",
+    q: "실변 없이 배변 조절이 항상 가능합니까? (약물·좌약·관장 독립 관리 포함)",
+    yes: "10",
+    no: "q2"
+  }, {
+    id: "q2",
+    q: "배변 조절이 전혀 되지 않아 기저귀나 패드를 항상 착용해야 합니까?",
+    yes: "0",
+    no: "q3"
+  }, {
+    id: "q3",
+    q: "가끔 실변이 있으나 배변 조절 가능하고, 힌트·재촉·감독만으로 수행 가능합니까?",
+    yes: "8",
+    no: "q4"
+  }, {
+    id: "q4",
+    q: "배변 자세를 스스로 취할 수 있습니까? (주 1~2회 실변, 후처리 돀움 필요)",
+    yes: "5",
+    no: "2"
+  }]
+}, {
+  id: 8,
+  kr: "배뇨 조절",
+  en: "Bladder Control",
+  icon: "💧",
+  maxPts: 10,
+  acts: [{
+    name: "배뇨 조절",
+    subs: ["배뇨 조절", "실뇨 유무 확인"]
+  }, {
+    name: "배뇨 자세 취하기",
+    subs: ["변기로 이동", "침상에서 자세 취하기", "휠체어에서 다리 벌리기"]
+  }, {
+    name: "보조도구 사용",
+    subs: ["내·외부 도뇨기구", "소변통·튜브 사용", "배뇨백 관리"]
+  }, {
+    name: "약물 복용",
+    subs: ["배뇨 관련 약물 준비·복용"]
+  }, {
+    name: "실뇨 대비 보조용품",
+    subs: ["패드 교체", "기저귀 교체"]
+  }],
+  scores: [{
+    pts: 10,
+    label: "독립 수행",
+    desc: "실뇨 없이 배뇨 조절 항상 가능. 약물·기구·패드 독립 사용·관리",
+    note: "약물·기구·패드 독립 관리"
+  }, {
+    pts: 8,
+    label: "최소 도움",
+    desc: "가끔 실뇨. 규칙적 배뇨 훈련 재촉·힌트 필요. 기구 사용 시 약간 도움",
+    note: "규칙적 배뇨 재촉·힌트, 기구 사용 약간 도움"
+  }, {
+    pts: 5,
+    label: "중등도 도움",
+    desc: "야간 실뇨. 배뇨 자세·보조도구 사용에 유도·힌트·감독 필요",
+    note: "배뇨 자세, 보조도구에 유도·힌트·감독"
+  }, {
+    pts: 2,
+    label: "최대 도움",
+    desc: "실뇨. 자세 취하기·외부 도뇨기구·튜브·배뇨백 관리 등 전반적 도움 필요",
+    note: "자세·기구·튜브·배뇨백 모두 도움"
+  }, {
+    pts: 0,
+    label: "완전 의존",
+    desc: "배뇨 조절 완전 의존. 지속적 도뇨·보조기구 완전 의존",
+    note: "지속적 도뇨 완전 의존"
+  }],
+  flow: [{
+    id: "q1",
+    q: "실뇨 없이 배뇨 조절이 항상 가능합니까? (약물·기구·패드 독립 관리 포함)",
+    yes: "10",
+    no: "q2"
+  }, {
+    id: "q2",
+    q: "배뇨 조절이 완전히 불가합니까? (지속적 도뇨 등 완전 의존)",
+    yes: "0",
+    no: "q3"
+  }, {
+    id: "q3",
+    q: "가끔 실뇨 있으나 배뇨 조절 가능하고, 힌트·재촉만으로 수행 가능합니까?",
+    yes: "8",
+    no: "q4"
+  }, {
+    id: "q4",
+    q: "야간에만 실뇨 있고 배뇨 자세에만 도움이 필요합니까?",
+    yes: "5",
+    no: "2"
+  }]
+}, {
+  id: 9,
+  kr: "보행",
+  en: "Ambulation",
+  icon: "🚶",
+  maxPts: 15,
+  wcVersion: {
+    kr: "의자차 이동",
+    en: "Wheelchair",
+    icon: "♿",
+    maxPts: 5,
+    scores: [{
+      pts: 5,
+      label: "독립 수행",
+      desc: "의자차를 스스로 50m 이상 운전. 코너 돌기·회전·장애물 피하기·좁은 공간 위치잡기 가능",
+      note: "최소 50m 이동 가능"
+    }, {
+      pts: 4,
+      label: "최소 도움",
+      desc: "50m 이내 독립 운전 가능. 좁은 공간에서 약간 도움 필요. 시간 지연",
+      note: "시간 지연, 좁은 공간 약간 도움"
+    }, {
+      pts: 3,
+      label: "중등도 도움",
+      desc: "평지 이동과 의자차 조작은 가능. 좁은 공간이나 전방에서 지속적인 도움 필요. 한 명의 보조자 필요",
+      note: "평지 가능, 좁은 공간 지속 도움"
+    }, {
+      pts: 1,
+      label: "최대 도움",
+      desc: "의자차 준비·조작·이동·위치잡기 모두 도움 필요. 단거리 이동은 가능",
+      note: "단거리 가능, 모두 도움"
+    }, {
+      pts: 0,
+      label: "완전 의존",
+      desc: "치아닦기·머리 빗기·손 닦기·세수하기·면도·화장하기에서 완전히 의존적",
+      note: ""
+    }],
+    flow: [{
+      id: "q1",
+      q: "의자차를 독립적으로 50m 이상 운전할 수 있습니까? (코너·회전·장애물 포함)",
+      yes: "5",
+      no: "q2"
+    }, {
+      id: "q2",
+      q: "도움을 받으면 일부라도 운전할 수 있습니까?",
+      yes: "q3",
+      no: "0"
+    }, {
+      id: "q3",
+      q: "50m 이내 독립 운전 가능하고, 좁은 공간에서만 약간 도움이 필요합니까?",
+      yes: "4",
+      no: "q4"
+    }, {
+      id: "q4",
+      q: "평지 이동은 가능하나 좁은 공간에서 지속 도움이 필요합니까?",
+      yes: "3",
+      no: "1"
+    }]
+  },
+  acts: [{
+    name: "보조기 착용",
+    subs: ["의지·보조기·특수신발 착탈"]
+  }, {
+    name: "보행도구 준비",
+    subs: ["목발 잡기", "지팡이 잡기", "보행기 준비"]
+  }, {
+    name: "일어서기",
+    subs: ["손을 이용하여 일어서기", "선 자세 유지"]
+  }, {
+    name: "보행",
+    subs: ["평지 걷기 (50m 기준)", "울퉁불퉁한 곳 걷기", "모퉁이 돌기", "문지방 넘기", "복도 왕복"]
+  }, {
+    name: "목적지 인지",
+    subs: ["길 찾아가기"]
+  }],
+  scores: [{
+    pts: 15,
+    label: "독립 수행",
+    desc: "50m 이상 독립적으로 보행(모퉁이 돌기·문턱 넘기·불규칙 지면 포함). 보조기·보행도구 독립 사용. 목적지를 찾아갈 수 있음",
+    note: "목적지 찾아갈 수 있음"
+  }, {
+    pts: 12,
+    label: "최소 도움",
+    desc: "독립 보행은 가능하나 50m 미만. 안전을 위한 감독, 재촉과 힌트 필요. 시간 지연 발생",
+    note: "거리 제한 또는 안전 감독 필요"
+  }, {
+    pts: 8,
+    label: "중등도 도움",
+    desc: "보행보조도구에 도달하거나 조작할 때 도움 필요. 불규칙한 지면·모퉁이·문턱 넘기 시 한 명의 도움 필요",
+    note: "보조도구 다루기·불규칙 지면 도움"
+  }, {
+    pts: 3,
+    label: "최대 도움",
+    desc: "보행 동안 계속 최소 한 명 이상의 도움이 필요. 보행을 위해 최대한 도움 필요",
+    note: ""
+  }, {
+    pts: 0,
+    label: "완전 의존",
+    desc: "치아닦기·머리 빗기·손 닦기·세수하기·면도·화장하기에서 완전히 의존적",
+    note: ""
+  }],
+  flow: [{
+    id: "q1",
+    q: "50m 이상 독립적으로 보행할 수 있습니까? (모퉁이·문턱·불규칙 지면 포함)",
+    yes: "15",
+    no: "q2"
+  }, {
+    id: "q2",
+    q: "도움을 받으면 일부라도 보행할 수 있습니까?",
+    yes: "q3",
+    no: "0"
+  }, {
+    id: "q3",
+    q: "독립 보행은 가능하나 50m 미만이거나 안전 감독·재촉이 필요합니까?",
+    yes: "12",
+    no: "q4"
+  }, {
+    id: "q4",
+    q: "보행은 가능하나 보조도구 다루기·불규칙 지면에 도움이 필요합니까?",
+    yes: "8",
+    no: "3"
+  }]
+}, {
+  id: 10,
+  kr: "의자·침대 이동",
+  en: "Chair-Bed Transfer",
+  icon: "🛏️",
+  maxPts: 15,
+  acts: [{
+    name: "접근·준비",
+    subs: ["침대·의자로 접근 (보행/의자차)", "브레이크 잠금", "발받침 들어올리기", "팔걸이 올리기"]
+  }, {
+    name: "보조도구 이용",
+    subs: ["슬라이딩 보드 위치잡기", "의자차 위치 조정"]
+  }, {
+    name: "이동하기",
+    subs: ["일어나기", "회전하기", "돌기 (Pivot)", "앉기"]
+  }, {
+    name: "자세 취하기",
+    subs: ["앉은 자세 유지", "발 위치 조정"]
+  }],
+  scores: [{
+    pts: 15,
+    label: "독립 수행",
+    desc: "앉고 서기, 침대와 의자 사이를 안전하고 독립적으로 이동. 보조도구(슬라이딩보드, 손잡이 등) 사용 가능",
+    note: "슬라이딩 보드, 바 등 보조도구 사용 가능"
+  }, {
+    pts: 12,
+    label: "최소 도움",
+    desc: "안전 및 자신감을 위한 감시와 지시만 필요. 슬라이딩보드 조절·의자차 발판 조작·제동장치 조정 스스로 수행",
+    note: "자신감·안전 감독, 지시만 필요"
+  }, {
+    pts: 8,
+    label: "중등도 도움",
+    desc: "이동 동작의 어느 한 과정에서라도 도움을 주면 나머지는 수행 가능",
+    note: "한 단계 이상 도움 주면 가능"
+  }, {
+    pts: 3,
+    label: "최대 도움",
+    desc: "이동에 환자가 참여하지만 이동 전 과정에서 한 명의 최대한 도움이 필요",
+    note: "모든 단계 최대 도움"
+  }, {
+    pts: 0,
+    label: "완전 의존",
+    desc: "치아닦기·머리 빗기·손 닦기·세수하기·면도·화장하기에서 완전히 의존적",
+    note: ""
+  }],
+  flow: [{
+    id: "q1",
+    q: "침대와 의자 사이 이동을 안전하고 독립적으로 수행합니까?",
+    yes: "15",
+    no: "q2"
+  }, {
+    id: "q2",
+    q: "도움을 받으면 일부라도 수행할 수 있습니까?",
+    yes: "q3",
+    no: "0"
+  }, {
+    id: "q3",
+    q: "안전·자신감을 위한 감독과 지시만으로 수행 가능합니까?",
+    yes: "12",
+    no: "q4"
+  }, {
+    id: "q4",
+    q: "이동 동작 중 한 단계 이상 도움을 주면 수행 가능합니까?",
+    yes: "8",
+    no: "3"
+  }]
+}];
+const GRADE_COLORS = {
+  "독립 수행": "#3b82f6",
+  "최소 도움": "#22c55e",
+  "중등도 도움": "#eab308",
+  "최대 도움": "#f97316",
+  "완전 의존": "#ef4444"
+};
+
+// 점수 도트 색상 - 낮은점수(빨강)→높은점수(파랑) 순
+const dotColor = (vals, sv) => {
+  const idx = vals.indexOf(sv);
+  const ratio = vals.length <= 1 ? 1 : idx / (vals.length - 1);
+  const colors = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6"];
+  const ci = Math.round(ratio * (colors.length - 1));
+  return colors[ci];
+};
+const INTERP = [{
+  min: 100,
+  max: 100,
+  label: "완전 독립",
+  en: "Full Independent",
+  color: "#7c3aed",
+  pastel: "#ede9fe",
+  hours: "-"
+}, {
+  min: 85,
+  max: 99,
+  label: "최소 의존",
+  en: "Minimal Assist",
+  color: "#2563eb",
+  pastel: "#dbeafe",
+  hours: "10.0이하"
+}, {
+  min: 60,
+  max: 84,
+  label: "경증 의존",
+  en: "Mild Assist",
+  color: "#16a34a",
+  pastel: "#dcfce7",
+  hours: "13.0"
+}, {
+  min: 40,
+  max: 59,
+  label: "중등도 의존",
+  en: "Moderate Assist",
+  color: "#ca8a04",
+  pastel: "#fef9c3",
+  hours: "20.0"
+}, {
+  min: 20,
+  max: 39,
+  label: "중증 의존",
+  en: "Severe Assist",
+  color: "#ea580c",
+  pastel: "#ffedd5",
+  hours: "23.5"
+}, {
+  min: 0,
+  max: 19,
+  label: "완전 의존",
+  en: "Total Assist",
+  color: "#dc2626",
+  pastel: "#fee2e2",
+  hours: "27.0"
+}];
+function getInterp(s) {
+  return INTERP.find(r => s >= r.min && s <= r.max) || INTERP[4];
+}
+
+// ── ActItem ──────────────────────────────────────────────────
+function ActItem({
+  act,
+  isLast,
+  expandAll
+}) {
+  const [open, setOpen] = React.useState(false);
+  const isOpen = expandAll || open;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderBottom: isLast ? "none" : "1px solid #FFE68A"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "7px 0",
+      cursor: "pointer"
+    },
+    onClick: () => setOpen(v => !v)
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 7,
+      height: 7,
+      borderRadius: "50%",
+      background: "#F5A623",
+      flexShrink: 0
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700,
+      color: "#7D4E00",
+      flex: 1
+    }
+  }, act.name), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: "#B8860B",
+      background: "#FFF3CD",
+      borderRadius: 10,
+      padding: "2px 8px",
+      fontWeight: 700
+    }
+  }, isOpen ? "접기" : "자세히", " ", isOpen ? "▲" : "▼")), isOpen && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginLeft: 15,
+      borderLeft: "2px solid #FFD566",
+      paddingLeft: 10,
+      paddingBottom: 8
+    }
+  }, act.subs.map((sub, j) => /*#__PURE__*/React.createElement("div", {
+    key: j,
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "3px 0",
+      fontSize: 12,
+      color: "#5C4A00"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 4,
+      height: 4,
+      borderRadius: "50%",
+      background: "#F5A623",
+      flexShrink: 0
+    }
+  }), sub))));
+}
+
+// ── Radar Chart ──────────────────────────────────────────────
+function Radar({
+  scores,
+  useWc
+}) {
+  const axes = [{
+    label: "개인위생",
+    key: "1",
+    max: 5
+  }, {
+    label: "목욕하기",
+    key: "2",
+    max: 5
+  }, {
+    label: "식사하기",
+    key: "3",
+    max: 10
+  }, {
+    label: "용변처리",
+    key: "4",
+    max: 10
+  }, {
+    label: "계단",
+    key: "5",
+    max: 10
+  }, {
+    label: "옷 입고 벗기",
+    key: "6",
+    max: 10
+  }, {
+    label: "배변 조절",
+    key: "7",
+    max: 10
+  }, {
+    label: "배뇨 조절",
+    key: "8",
+    max: 10
+  }, {
+    label: useWc ? "의자차" : "보행",
+    key: useWc ? "9wc" : "9",
+    max: useWc ? 5 : 15
+  }, {
+    label: "의자·침대",
+    key: "10",
+    max: 15
+  }];
+  const N = axes.length,
+    cx = 130,
+    cy = 130,
+    R = 88;
+  const ang = i => Math.PI * 2 * i / N - Math.PI / 2;
+  const pt = (i, r) => ({
+    x: cx + R * r * Math.cos(ang(i)),
+    y: cy + R * r * Math.sin(ang(i))
+  });
+  const poly = ratios => ratios.map((r, i) => pt(i, r));
+  const pathD = pts => pts.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join("") + "Z";
+  const dataRatios = axes.map(a => {
+    const sc = scores[a.key];
+    return sc !== undefined ? sc / a.max : 0;
+  });
+  const dataPts = poly(dataRatios);
+
+  // 각 항목 점수 비율에 따른 색상 (낮음=빨강 → 높음=파랑)
+  const getDotColor = ratio => {
+    if (ratio >= 0.9) return "#3b82f6";
+    if (ratio >= 0.7) return "#22c55e";
+    if (ratio >= 0.5) return "#eab308";
+    if (ratio >= 0.25) return "#f97316";
+    return "#ef4444";
+  };
+  return /*#__PURE__*/React.createElement("svg", {
+    width: 260,
+    height: 260,
+    style: {
+      display: "block",
+      margin: "0 auto",
+      overflow: "visible"
+    }
+  }, [0.25, 0.5, 0.75, 1].map((lv, i) => {
+    const ringColors = ["rgba(239,68,68,0.18)","rgba(234,179,8,0.18)","rgba(34,197,94,0.18)","rgba(59,130,246,0.18)"];
+    const strokeColors = ["#ef4444","#eab308","#22c55e","#3b82f6"];
+    return /*#__PURE__*/React.createElement("path", {
+      key: lv,
+      d: pathD(poly(axes.map((_, j) => lv))),
+      fill: ringColors[i],
+      stroke: strokeColors[i],
+      strokeWidth: 0.7,
+      strokeDasharray: "3,2",
+      opacity: 0.7
+    });
+  }), axes.map((_, i) => {
+    const e = pt(i, 1);
+    return /*#__PURE__*/React.createElement("line", {
+      key: i,
+      x1: cx,
+      y1: cy,
+      x2: e.x,
+      y2: e.y,
+      stroke: "#e5e7eb",
+      strokeWidth: 0.7
+    });
+  }), /*#__PURE__*/React.createElement("path", {
+    d: pathD(dataPts),
+    fill: "rgba(59,130,246,0.12)",
+    stroke: "#3b82f6",
+    strokeWidth: 2
+  }), dataPts.map((p, i) => {
+    const sc = scores[axes[i].key];
+    if (sc === undefined) return null;
+    const color = getDotColor(dataRatios[i]);
+    return /*#__PURE__*/React.createElement("circle", {
+      key: i,
+      cx: p.x,
+      cy: p.y,
+      r: 5,
+      fill: color,
+      stroke: "white",
+      strokeWidth: 1.5
+    });
+  }), axes.map((a, i) => {
+    const lr = R + 26,
+      lx = cx + lr * Math.cos(ang(i)),
+      ly = cy + lr * Math.sin(ang(i));
+    const sc = scores[a.key];
+    const item = ITEMS.find(it => String(it.id) === a.key || it.id === 9 && a.key === "9wc");
+    const entry = sc !== undefined && item ? ((a.key === "9wc" ? item.wcVersion : item) || item).scores.find(s => s.pts === sc) : null;
+    const color = entry ? GRADE_COLORS[entry.label] || "#9ca3af" : "#9ca3af";
+    return /*#__PURE__*/React.createElement("text", {
+      key: i,
+      x: lx,
+      y: ly,
+      textAnchor: "middle",
+      dominantBaseline: "middle",
+      fontSize: 9,
+      fontWeight: sc !== undefined ? 700 : 400,
+      fill: sc !== undefined ? color : "#aaa",
+      fontFamily: "'Pretendard','Noto Sans KR',sans-serif"
+    }, a.label);
+  }));
+}
+
+// ── App ──────────────────────────────────────────────────────
+function App() {
+  const [page, setPage] = useState("home");
+  const [scores, setScores] = useState({});
+  const [activeId, setActiveId] = useState(null);
+  const [useWc, setUseWc] = useState(false);
+  const [mode, setMode] = useState("flow");
+  const [flowStep, setFlowStep] = useState("q1");
+  const [flowHist, setFlowHist] = useState([]);
+  const [flowAnswers, setFlowAnswers] = useState({});
+  const [aiText, setAiText] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [resultModal, setResultModal] = useState(null);
+  const [aiSheet, setAiSheet] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [summaryAI, setSummaryAI] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [icfAI, setIcfAI] = useState("");
+  const [icfData, setIcfData] = useState(null);
+  const [icfLoading, setIcfLoading] = useState(false);
+  const [showIcfInfo, setShowIcfInfo] = useState(false);
+  const [showAllInterp, setShowAllInterp] = useState(false);
+  const [showOtpfInfo, setShowOtpfInfo] = useState(false);
+  const [showSmartInfo, setShowSmartInfo] = useState(false);
+  const [showAiInfo, setShowAiInfo] = useState(false);
+  const [icfInfo, setIcfInfo] = useState({
+    cognition: "", environment: "", housing: "", caregiver: "", device: "", age: "", diagnosis: "", onset: "", motivation: ""
+  });
+  const [sheetItem, setSheetItem] = useState(null);
+  const [sheetText, setSheetText] = useState("");
+  const [resultLoading, setResultLoading] = useState(false);
+  const [showActs, setShowActs] = useState(false);
+  const [showAllGrades, setShowAllGrades] = useState(false);
+  const [confirmGrade, setConfirmGrade] = useState(null);
+  const [aiModal, setAiModal] = useState(null);
+  const getKey = id => id === 9 ? useWc ? "9wc" : "9" : String(id);
+  const getData = item => item.id === 9 && useWc && item.wcVersion ? item.wcVersion : item;
+  const maxPoss = ITEMS.reduce((s, it) => s + (it.id === 9 ? useWc ? 5 : 15 : it.maxPts), 0);
+  const total = ITEMS.reduce((s, it) => s + (scores[getKey(it.id)] ?? 0), 0);
+  const done = ITEMS.filter(it => scores[getKey(it.id)] !== undefined).length;
+  const interp = getInterp(total);
+  const activeItem = ITEMS.find(i => i.id === activeId);
+  const activeData = activeItem ? getData(activeItem) : null;
+  const curSc = activeItem ? scores[getKey(activeItem.id)] : undefined;
+  const curEntry = activeData?.scores.find(s => s.pts === curSc);
+  const flowNode = activeData?.flow.find(f => f.id === flowStep);
+  const stepIdx = activeData?.flow.findIndex(f => f.id === flowStep) ?? 0;
+  const openItem = item => {
+    const key = item.id === 9 ? (useWc ? "9wc" : "9") : String(item.id);
+    const hasSc = scores[key] !== undefined;
+    setActiveId(item.id);
+    setMode("flow");
+    setFlowStep(hasSc ? "done" : "q1");
+    setFlowHist([]);
+    setAiText("");
+    setAiModal(null);
+    setShowActs(false);
+    setShowAllGrades(false);
+    setConfirmGrade(null);
+    setPage("assess"); window.scrollTo(0,0);
+    window.scrollTo(0, 0);
+  };
+  const handleFlow = ans => {
+    const node = activeData?.flow.find(f => f.id === flowStep);
+    if (!node) return;
+    const next = ans === "yes" ? node.yes : node.no;
+    setFlowHist(h => [...h, {
+      step: flowStep,
+      ans
+    }]);
+    const newHist = [...flowHist, {step: flowStep, ans}];
+    if (next && !isNaN(next)) {
+      setScores(p => ({
+        ...p,
+        [getKey(activeItem.id)]: parseInt(next)
+      }));
+      setFlowAnswers(p => ({
+        ...p,
+        [getKey(activeItem.id)]: (() => {
+          const sc = parseInt(next);
+          const key = getKey(activeItem.id) + "_" + sc;
+          if (FLOW_COMMENTS[key]) return FLOW_COMMENTS[key];
+          const maxPts = activeData?.maxPts || activeItem.maxPts;
+          const ratio = sc / maxPts;
+          if (ratio >= 1) return "모든 단계를 독립적으로 수행함";
+          if (ratio >= 0.8) return "대부분 독립 수행, 최소한의 준비 도움만 필요";
+          if (ratio >= 0.6) return "부분 도움으로 수행 가능, 참여가 도움보다 많음";
+          if (ratio >= 0.4) return "상당한 도움 필요, 일부 단계만 참여 가능";
+          if (ratio >= 0.2) return "대부분 도움 의존, 참여는 제한적";
+          return "전혀 참여 불가, 완전 도움 필요";
+        })()
+      }));
+      setFlowStep("done");
+    } else if (next) setFlowStep(next);
+  };
+  const undoFlow = () => {
+    if (!flowHist.length) return;
+    const prev = [...flowHist];
+    prev.pop();
+    setFlowHist(prev);
+    if (flowStep === "done") setScores(s => {
+      const n = {
+        ...s
+      };
+      delete n[getKey(activeItem.id)];
+      return n;
+    });
+    setFlowStep(prev.length > 0 ? prev[prev.length - 1].step : "q1");
+  };
+  const analyzeAI = async () => {
+    if (!aiText.trim() || !activeData) return;
+    setAiLoading(true);
+    setAiModal(null);
+    const criteria = activeData.scores.map(s => `${s.pts}점 (${s.label}): ${s.desc}`).join("\n");
+    const flowQA = flowHist.map((h, i) => {
+      const q = activeData.flow.find(f => f.id === h.step);
+      return q ? {
+        q: `Q${i + 1}. ${q.q}`,
+        ans: h.ans
+      } : null;
+    }).filter(Boolean);
+    const prompt = "평가항목: " + activeData.kr + "\n\n채점기준:\n" + criteria + "\n\n플로우차트 답변:\n" + flowQA.map(q => q.q + " → " + (q.ans === "yes" ? "예" : "아니오")).join("\n") + "\n\n관찰내용: \"" + aiText + "\"" + "\n\n반드시 JSON만 출력: {\"score\":숫자,\"label\":\"등급명\",\"reason\":\"판단이유\"}";
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer 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"
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{
+            role: "system",
+            content: "당신은 K-MBI(한국판 수정 바델 지수) 평가 전문가입니다. 반드시 유효한 JSON만 출력하세요."
+          }, {
+            role: "user",
+            content: prompt
+          }],
+          max_tokens: 400,
+          temperature: 0.2
+        })
+      });
+      const d = await res.json();
+      if (d.error) throw new Error(d.error.message);
+      const raw = (d.choices?.[0]?.message?.content || "").replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(raw);
+      if (parsed.score !== undefined) setScores(p => ({
+        ...p,
+        [getKey(activeItem.id)]: parsed.score
+      }));
+      setAiModal({
+        item: activeItem,
+        data: activeData,
+        result: parsed,
+        text: aiText,
+        flowQA
+      });
+    } catch (e) {
+      setAiModal({
+        error: true,
+        msg: e.message || "오류가 발생했습니다."
+      });
+    }
+    setAiLoading(false);
+  };
+  const analyzeResult = async () => {
+    if (done === 0) {
+      alert("평가된 항목이 없습니다.");
+      return;
+    }
+    setResultLoading(true);
+    setResultModal(null);
+    const scoreSummary = ITEMS.map(it => {
+      const d = getData(it),
+        sc = scores[getKey(it.id)];
+      const entry = sc !== undefined ? d.scores.find(s => s.pts === sc) : null;
+      return `${it.id}. ${d.kr || it.kr}: ${sc !== undefined ? sc + "점 (" + entry?.label + ")" : "미평가"}`;
+    }).join("\n");
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer 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"
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          max_tokens: 800,
+          temperature: 0.3,
+          messages: [{
+            role: "system",
+            content: "당신은 작업치료사(OT) 전문가입니다. K-MBI 평가 결과를 분석하여 재활 방향을 제안합니다. 한국어로 답변하세요."
+          }, {
+            role: "user",
+            content: "K-MBI 평가 결과:\n" + scoreSummary + "\n\n총점: " + total + "/" + maxPoss + "점\n\n다음 항목을 분석해주세요:\n1. 전반적 기능 수준 요약 (2-3문장)\n2. 가장 취약한 항목 Top 3와 재활 우선순위\n3. 일상생활 복귀를 위한 단기 목표 (3가지)\n4. 보호자 교육 포인트 (2가지)\n\n간결하고 실용적으로 작성해주세요."
+          }]
+        })
+      });
+      const d = await res.json();
+      if (d.error) throw new Error(d.error.message);
+      const text = d.choices?.[0]?.message?.content || "";
+      setResultModal({
+        text,
+        total,
+        maxPoss
+      });
+    } catch (e) {
+      alert("분석 오류: " + (e.message || "다시 시도해주세요."));
+    }
+    setResultLoading(false);
+  };
+  const generateIcf = async () => {
+    setIcfLoading(true);
+    setIcfAI("");
+    const ICF_CODES = {1:"d510",2:"d510",3:"d550",4:"d530",5:"d455",6:"d540",7:"b525",8:"b620",9:"d450",10:"d420"};
+    const calcQualifier = (sc, maxPts) => { const pct=(sc/maxPts)*100; return pct>=96?{q:0,l:"문제없음"}:pct>=75?{q:1,l:"경미한 제한"}:pct>=50?{q:2,l:"중등도 제한"}:pct>=25?{q:3,l:"심각한 제한"}:{q:4,l:"완전한 제한"}; };
+
+    // 항목별 활동분석 + 채점기준 + 다음단계 기준 모두 포함 (MBI 항목 순서 유지)
+    const itemDetails = ITEMS
+      .filter(it => scores[getKey(it.id)] !== undefined && it.id !== 7 && it.id !== 8)
+      .map(it => {
+        const d = getData(it), sc = scores[getKey(it.id)];
+        const sortedScores = [...d.scores].sort((a,b) => a.pts - b.pts);
+        const curIdx = sortedScores.findIndex(s => s.pts === sc);
+        const curEntry = sortedScores[curIdx];
+        const nextEntry = sortedScores[curIdx + 1];
+        const qual = calcQualifier(sc, d.maxPts);
+        const acts = d.acts ? d.acts.map(a => a.name + ": " + a.subs.join(", ")).join(" / ") : "";
+        // 특수 조건: 식사 최고단계 → 식사 준비(IADL) 목표 추가
+        const specialNote = (it.id === 3 && !nextEntry) ? " [특이사항: 현재 MBI 최고단계. IADL 확장 목표로 식사 준비하기(요리·상차리기) 훈련 추가 권장]"
+          // 특수 조건: 보행 최고단계 → 장소 찾아가기 훈련 추가
+          : (it.id === 9 && !nextEntry) ? " [특이사항: 현재 MBI 최고단계. 확장 목표로 병실·목적지 스스로 찾아가는 공간탐색 훈련 추가 권장]"
+          : "";
+        return `[${it.id}. ${d.kr}] ICF:${ICF_CODES[it.id]||"d-"}.${qual.q}(${qual.l}) 현재:${sc}/${d.maxPts}점(${curEntry?.label||""}) 기준:${curEntry?.desc||""}${nextEntry ? ` → 목표(${nextEntry.pts}점): ${nextEntry.desc}` : " → 최고단계"}${specialNote} 활동분석:[${acts}]`;
+      });
+
+    const patientCtx = [
+      icfInfo.age && "연령대: " + icfInfo.age,
+      icfInfo.diagnosis && "진단: " + icfInfo.diagnosis,
+      icfInfo.onset && "발병시기: " + icfInfo.onset,
+      icfInfo.cognition && "인지기능: " + icfInfo.cognition,
+      icfInfo.caregiver && "보조자: " + icfInfo.caregiver,
+      icfInfo.housing && "주거: " + icfInfo.housing,
+    ].filter(Boolean).join(", ");
+
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "Authorization": "Bearer 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"},
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          max_tokens: 2500,
+          temperature: 0.1,
+          messages: [{
+            role: "system",
+            content: "당신은 경력 15년 작업치료사입니다. K-MBI 항목별 활동분석과 채점기준을 바탕으로 세부 치료목표를 설정합니다. 반드시 JSON만 출력하세요.\n\n목표 설정 원칙:\n① 배뇨·배변 제외\n② 결과는 반드시 MBI 항목 번호(1~10) 순서대로 출력\n③ 각 항목의 '목표 점수 기준'을 달성하기 위한 활동분석 세부 단계를 목표로 삼음\n④ 목표는 한 단계 올리는 것 또는 여러 활동 단계를 조합 가능\n⑤ 구체적이고 측정 가능하게 (SMART): 기간·횟수·보조수준 명시\n⑥ [특이사항]이 있는 항목은 반드시 해당 내용을 activities와 short_goals에 포함할 것\n⑦ ICF body/participation/environment는 간략히 작성"
+          }, {
+            role: "user",
+            content: "총점: " + total + "/" + maxPoss + "점 (" + interp.label + ")" +
+              (patientCtx ? "\n환자정보: " + patientCtx : "") +
+              "\n\n[항목별 활동분석 및 채점기준]\n" + itemDetails.join("\n") +
+              "\n\nJSON 형식으로만 출력:\n{\"icf\":{\"body\":\"신체기능 손상 2줄 요약\",\"participation\":\"참여 제약\",\"environment\":\"환경요인\"},\"goals\":[{\"item\":\"항목명\",\"current\":\"현재 점수/등급\",\"target\":\"목표 점수/등급\",\"target_criteria\":\"목표 점수(nextEntry)의 MBI 채점기준 인용 — 이 조건을 달성하는 것이 목표\",\"short_goals\":[\"2~4주 구체적 세부목표1\",\"세부목표2\"],\"activities\":[\"훈련할 활동 단계1\",\"단계2\",\"단계3\"]}],\"recommendation\":\"전체 치료 방향 한 줄\"}"
+          }]
+        })
+      });
+      const d = await res.json();
+      if (d.error) throw new Error(d.error.message);
+      const raw = (d.choices?.[0]?.message?.content || "").replace(/```json|```/g,"").trim();
+      const parsed = JSON.parse(raw);
+      setIcfData(parsed);
+      setIcfAI("done");
+    } catch(e) { setIcfAI("오류: " + e.message); setIcfData(null); }
+    setIcfLoading(false);
+  };
+  const generateSummary = async () => {
+    setSummaryLoading(true);
+    setSummaryAI("");
+    const details = ITEMS.filter(it => scores[getKey(it.id)] !== undefined).map(it => {
+      const d = getData(it),
+        sc = scores[getKey(it.id)];
+      const entry = d.scores.find(s => s.pts === sc);
+      const sortedScores = [...d.scores].sort((a, b) => a.pts - b.pts);
+      const currentIdx = sortedScores.findIndex(s => s.pts === sc);
+      const nextEntry = sortedScores[currentIdx + 1];
+      return it.id + ". " + d.kr + ": " + sc + "점 (" + (entry?.label||"") + ") — 현재: " + (entry?.desc||"") + (nextEntry ? " | 다음단계(" + nextEntry.label + "): " + nextEntry.desc : " | 최고단계");
+    }).join("\n");
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer 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"
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          max_tokens: 1000,
+          temperature: 0.1,
+          messages: [{
+            role: "system",
+            content: "당신은 임상 경력 20년의 작업치료사입니다. K-MBI 평가 결과를 보고 해당 환자의 ADL 기능 상태를 동료 치료사나 의료진에게 구두로 설명하듯 자연스럽고 임상적으로 명확하게 서술합니다. 수치나 형식적인 틀 없이, 실제 임상에서 쓰는 말투로 현재 상태가 어떠한지를 핵심적으로 짚어주세요. 단, 전문적 근거에 기반해야 하며 과장하거나 막연한 표현은 피합니다. 한국어로 작성하세요."
+          }, {
+            role: "user",
+            content: "K-MBI 총점: " + total + "/" + maxPoss + "점 (" + interp.label + ", 주당 예상 도움시간 " + (interp.hours !== "-" ? interp.hours + "시간" : "불필요") + ")\n\n항목별 결과:\n" + details + "\n\n이 환자의 현재 ADL 기능 상태를 임상적으로 총평해주세요. 어떤 상태인지, 어디가 상대적으로 낫고 어디가 취약한지, 일상에서 실질적으로 어떤 어려움이 있을지를 경험 많은 작업치료사의 시각으로 자연스럽게 설명해주세요. 4~6문장 정도로 작성하세요."
+          }]
+        })
+      });
+      const d = await res.json();
+      if (d.error) throw new Error(d.error.message);
+      setSummaryAI(d.choices?.[0]?.message?.content || "");
+    } catch (e) {
+      setSummaryAI("오류: " + e.message);
+    }
+    setSummaryLoading(false);
+  };
+  const resetAll = () => setConfirmReset(true);
+  const doReset = () => {
+    setScores({});
+    setFlowAnswers({});
+    setActiveId(null);
+    setFlowStep("q1");
+    setFlowHist([]);
+    setAiText("");
+    setAiModal(null);
+    setConfirmReset(false);
+    setPage("home");
+  };
+  const share = () => {
+    const txt = ITEMS.map(it => {
+      const d = getData(it),
+        sc = scores[getKey(it.id)];
+      const e = d.scores.find(s => s.pts === sc);
+      return it.id + ". " + (d.kr || it.kr) + ": " + (sc !== undefined ? sc + "점 (" + (e?.label || "") + ")" : "미평가");
+    }).join("\n") + "\n\n합계: " + total + "/" + maxPoss + "점 — " + interp.label;
+    if (navigator.share) navigator.share({
+      title: "K-MBI 결과",
+      text: txt
+    });else {
+      navigator.clipboard?.writeText(txt);
+      alert("클립보드에 복사되었습니다.");
+    }
+  };
+
+  // ────── HOME ──────────────────────────────────────────────
+  if (page === "home") return /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Pretendard','Noto Sans KR',sans-serif",
+      background: "#f5f7fa",
+      minHeight: "100vh",
+      paddingBottom: 40
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "linear-gradient(160deg,#0f172a 0%,#1e3a5f 60%,#1e40af 100%)",
+      padding: "32px 20px 28px",
+      position: "relative",
+      overflow: "hidden"
+    }
+  },
+  /*#__PURE__*/React.createElement("div", {style:{position:"absolute",top:-60,right:-60,width:220,height:220,borderRadius:"50%",background:"radial-gradient(circle,rgba(110,231,208,0.12) 0%,transparent 70%)"}}),
+  /*#__PURE__*/React.createElement("div", {style:{position:"absolute",bottom:-40,left:-40,width:160,height:160,borderRadius:"50%",background:"radial-gradient(circle,rgba(59,130,246,0.1) 0%,transparent 70%)"}}),
+  /*#__PURE__*/React.createElement("div", {style:{position:"relative",zIndex:1}},
+    /*#__PURE__*/React.createElement("div", {style:{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(255,255,255,0.1)",borderRadius:20,padding:"4px 12px",marginBottom:16}},
+      /*#__PURE__*/React.createElement("span", {style:{fontSize:10,color:"rgba(255,255,255,0.7)",fontWeight:700,letterSpacing:1}}, "MBI · ICF · Activity Analysis · SMART Goal")
+    ),
+
+    /*#__PURE__*/React.createElement("div", {style:{fontSize:26,fontWeight:900,color:"white",letterSpacing:-1,marginBottom:10, lineHeight:1.2}},
+      "RehaPlan ",
+      /*#__PURE__*/React.createElement("span", {style:{color:"#6ee7d0"}}, "AI")
+    ),
+    /*#__PURE__*/React.createElement("div", {style:{display:"inline-flex", alignItems:"center", justifyContent:"center", background:"#6ee7d0", border:"none", borderRadius:30, padding:"5px 20px", marginBottom:20, height:32}},
+      /*#__PURE__*/React.createElement("span", {style:{fontSize:13,fontWeight:700,color:"#0f172a",letterSpacing:-0.3}}, "K-MBI \ud3c9\uac00\ub97c \uc774\ud574\ud558\uace0, \uce58\ub8cc\uacc4\ud68d\uc744 \uc81c\uc548\ud558\ub2e4")
+    ),
+    /*#__PURE__*/React.createElement("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
+      [
+        {label:"SMART Goal", desc:"주차별 측정 가능한 목표", color:"#fde68a", bg:"rgba(253,230,138,0.15)", border:"rgba(253,230,138,0.3)"},
+        {label:"ICF Mapping", desc:"d420, d450, d540...", color:"#bfdbfe", bg:"rgba(191,219,254,0.15)", border:"rgba(191,219,254,0.3)"},
+        {label:"Activity Analysis", desc:"활동분석 기반 세부목표", color:"#bbf7d0", bg:"rgba(187,247,208,0.15)", border:"rgba(187,247,208,0.3)"},
+        {label:"AI Recommendation", desc:"개인맞춤 치료 제안", color:"#e9d5ff", bg:"rgba(233,213,255,0.15)", border:"rgba(233,213,255,0.3)"}
+      ].map(c => /*#__PURE__*/React.createElement("div", {
+        key:c.label,
+        onClick: () => {
+          const isIcf = c.label==="ICF Mapping";
+          const isSmart = c.label==="SMART Goal";
+          const isOtpf = c.label==="Activity Analysis";
+          const isAi = c.label==="AI Recommendation";
+          setShowIcfInfo(v => isIcf ? !v : false);
+          setShowSmartInfo(v => isSmart ? !v : false);
+          setShowOtpfInfo(v => isOtpf ? !v : false);
+          setShowAiInfo(v => isAi ? !v : false);
+        },
+        style:{background:c.bg, borderRadius:10, padding:"10px 12px", border:"1px solid "+c.border, cursor:"pointer"}
+      },
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:13,fontWeight:800,color:c.color,marginBottom:4}}, c.label),
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:11,color:"rgba(255,255,255,0.75)"}}, c.desc)
+      ))
+    ),
+    /*#__PURE__*/React.createElement("div", {style:{textAlign:"right", paddingTop:8}},
+      /*#__PURE__*/React.createElement("span", {style:{fontSize:12, color:"rgba(255,255,255,0.65)", fontWeight:600}},
+        "Developed by \uc791\uc5c5\uce58\ub8cc\uc0ac \ud558\uc7ac\uc6a9  ·  Based on K-MBI · ICF · Activity Analysis")
+    ),
+    showIcfInfo && /*#__PURE__*/React.createElement("div", {
+      style:{background:"rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",marginTop:10,border:"1px solid rgba(191,219,254,0.2)"}
+    },
+      /*#__PURE__*/React.createElement("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
+        /*#__PURE__*/React.createElement("span", {style:{fontSize:12,fontWeight:700,color:"#6ee7d0"}}, "\uc65c ICF\ub97c \uc0ac\uc6a9\ud558\ub294 \uc774\uc720"),
+        /*#__PURE__*/React.createElement("span", {onClick:e=>{e.stopPropagation();setShowIcfInfo(false);}, style:{fontSize:16,color:"rgba(255,255,255,0.4)",cursor:"pointer",lineHeight:1}}, "\u00d7")
+      ),
+      /*#__PURE__*/React.createElement("p", {style:{fontSize:11,color:"rgba(255,255,255,0.8)",lineHeight:1.8,margin:0,marginBottom:10}},
+        "K-MBI \uc810\uc218\ub9cc\uc73c\ub85c\ub294 \uce58\ub8cc\uacc4\ud68d\uc744 \uc138\uc6b0\uae30\uc5d0 \ubd80\uc871\ud569\ub2c8\ub2e4. \uac19\uc740 \ubaa9\uc695 1\uc810\uc774\ub77c\ub3c4 \uadfc\ub825 \uc800\ud558 \ub54c\ubb38\uc778\uc9c0, \uad00\uc808 \uac00\ub3d9\ubc94\uc704 \ubb38\uc81c\uc778\uc9c0, \uc778\uc9c0 \uc800\ud558 \ub54c\ubb38\uc778\uc9c0\uc5d0 \ub530\ub77c \uce58\ub8cc \ubc29\ud5a5\uc774 \uc644\uc804\ud788 \ub2ec\ub77c\uc9d1\ub2c8\ub2e4."
+      ),
+      /*#__PURE__*/React.createElement("div", {style:{background:"rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 12px",marginBottom:10}},
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:10,fontWeight:700,color:"#93c5fd",marginBottom:3}}, "\ud65c\ub3d9 \uc81c\ud55c (Activity)"),
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:11,color:"rgba(255,255,255,0.8)",marginBottom:6}}, "d510 \ubaa9\uc695\ud558\uae30 \u2014 \uc2ec\ud55c \uc81c\ud55c"),
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:10,fontWeight:700,color:"#6ee7d0",marginBottom:3}}, "\uc6d0\uc778 (Body Function)"),
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:11,color:"rgba(255,255,255,0.8)",marginBottom:6}}, "b730 \uadfc\ub825\uae30\ub2a5 \u2014 \uc911\ub4f1\ub3c4 \uc190\uc0c1"),
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:10,fontWeight:700,color:"#fde68a",marginBottom:3}}, "\ud658\uacbd\uc694\uc778 (Environment)"),
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:11,color:"rgba(255,255,255,0.8)"}}, "e115 \ubcf4\uc870\uae30\uad6c \u2014 \uc7a5\ubcbd / e310 \uac00\uc871 \u2014 \ucd09\uc9c4\uc694\uc778")
+      ),
+      /*#__PURE__*/React.createElement("p", {style:{fontSize:11,color:"rgba(255,255,255,0.7)",lineHeight:1.8,margin:0}},
+        "\u201c\ubaa9\uc695\uc744 \ubabb\ud558\ub294\ub370 (d510), \uadfc\ub825\uc774 \uc57d\ud574\uc11c (b730), \ubcf4\uc870\uae30\uad6c\uac00 \uc5c6\uace0 (e115), \uac00\uc871\uc774 \uc788\uc73c\ub2c8 \uad50\uc721\ud558\uba74 \ub41c\ub2e4 (e310)\u201d\ub294 \uc784\uc0c1 \ucd94\ub860\uc774 ICF \ucf54\ub4dc \ud558\ub098\uc5d0 \ub2f4\uae41\ub2c8\ub2e4."
+      )
+    ),
+    showSmartInfo && /*#__PURE__*/React.createElement("div", {style:{background:"rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",marginTop:10,border:"1px solid rgba(253,230,138,0.2)"}},
+      /*#__PURE__*/React.createElement("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
+        /*#__PURE__*/React.createElement("span", {style:{fontSize:12,fontWeight:700,color:"#fde68a"}}, "SMART Goal이란?"),
+        /*#__PURE__*/React.createElement("span", {onClick:e=>{e.stopPropagation();setShowSmartInfo(false);}, style:{fontSize:16,color:"rgba(255,255,255,0.4)",cursor:"pointer",lineHeight:1}}, "×")
+      ),
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:11,color:"rgba(255,255,255,0.8)",lineHeight:1.9,marginBottom:10}},
+        /*#__PURE__*/React.createElement("div",null, /*#__PURE__*/React.createElement("span",{style:{color:"#fde68a",fontWeight:700}}, "S — Specific "), "다수하는지? 정확히 무엇을 할 것인지 명시"),
+        /*#__PURE__*/React.createElement("div",null, /*#__PURE__*/React.createElement("span",{style:{color:"#fde68a",fontWeight:700}}, "M — Measurable "), "달성했는지 숫자나 기준으로 확인 가능"),
+        /*#__PURE__*/React.createElement("div",null, /*#__PURE__*/React.createElement("span",{style:{color:"#fde68a",fontWeight:700}}, "A — Achievable "), "현재 수준에서 현실적으로 도달 가능한 목표"),
+        /*#__PURE__*/React.createElement("div",null, /*#__PURE__*/React.createElement("span",{style:{color:"#fde68a",fontWeight:700}}, "R — Relevant "), "환자의 실제 일상생활과 연결된 의미있는 목표"),
+        /*#__PURE__*/React.createElement("div",null, /*#__PURE__*/React.createElement("span",{style:{color:"#fde68a",fontWeight:700}}, "T — Time-bound "), "언제까지 달성할지 기한 명시")
+      ),
+      /*#__PURE__*/React.createElement("div", {style:{background:"rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 12px",marginBottom:8}},
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.9)",marginBottom:4}}, "예시 (보행 목표)"),
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:11,color:"rgba(255,255,255,0.75)",lineHeight:1.7}}, "❌ 단순: [보행 훈련을 합니다]", /*#__PURE__*/React.createElement("br",null), "✅ SMART: [4주 이내, 보행보조기로 10m 독립 보행을 3회 연속 성공]")
+      ),
+      /*#__PURE__*/React.createElement("p", {style:{fontSize:11,color:"rgba(255,255,255,0.6)",lineHeight:1.8,margin:0}}, "MBI 결과를 통해 현재 기능 수준을 파악하고, 현실적으로 달성 가능한 SMART 목표를 자동으로 제안합니다.")
+    ),
+    showOtpfInfo && /*#__PURE__*/React.createElement("div", {style:{background:"rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",marginTop:10,border:"1px solid rgba(187,247,208,0.2)"}},
+      /*#__PURE__*/React.createElement("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
+        /*#__PURE__*/React.createElement("span", {style:{fontSize:12,fontWeight:700,color:"#bbf7d0"}}, "Activity Analysis란?"),
+        /*#__PURE__*/React.createElement("span", {onClick:e=>{e.stopPropagation();setShowOtpfInfo(false);}, style:{fontSize:16,color:"rgba(255,255,255,0.4)",cursor:"pointer",lineHeight:1}}, "×")
+      ),
+      /*#__PURE__*/React.createElement("p", {style:{fontSize:11,color:"rgba(255,255,255,0.8)",lineHeight:1.8,margin:"0 0 10px"}},
+        "K-MBI 각 항목을 세부 활동 단계로 나누어 분석합니다. 현재 점수와 다음 단계 기준을 비교해 어떤 활동을 흔련하면 점수를 올릴 수 있는지 구체적으로 제안합니다."
+      ),
+      /*#__PURE__*/React.createElement("div", {style:{background:"rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 12px",marginBottom:8}},
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:11,color:"rgba(255,255,255,0.9)",marginBottom:6,fontWeight:700}}, "예시 (보행 3점 → 4점)"),
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:11,color:"rgba(255,255,255,0.75)",lineHeight:1.9}},
+          /*#__PURE__*/React.createElement("span",{style:{fontWeight:700,color:"#bbf7d0"}},"활동분석: "),
+          "보행기 위치잡기 → 서기 → 평지 10m → 모통이 돌기",
+          /*#__PURE__*/React.createElement("br",null),
+          /*#__PURE__*/React.createElement("span",{style:{fontWeight:700,color:"#bbf7d0"}},"목표기준: "),
+          "보조돈구 돈립 조작, 50m 이내 감독만 필요",
+          /*#__PURE__*/React.createElement("br",null),
+          /*#__PURE__*/React.createElement("span",{style:{fontWeight:700,color:"#bbf7d0"}},"세부목표: "),
+          "4주 이내 평지 20m 돈립 보행 3회 연속 성공"
+        )
+      ),
+      /*#__PURE__*/React.createElement("p", {style:{fontSize:11,color:"rgba(255,255,255,0.6)",lineHeight:1.8,margin:0}},
+        "MBI 채점 기준과 활동분석을 결합해 점수별로 달성 가능한 목표를 자동으로 도출합니다."
+      )
+    ),
+    showAiInfo && /*#__PURE__*/React.createElement("div", {style:{background:"rgba(255,255,255,0.08)",borderRadius:14,padding:"14px 16px",marginTop:10,border:"1px solid rgba(233,213,255,0.2)"}},
+      /*#__PURE__*/React.createElement("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
+        /*#__PURE__*/React.createElement("span", {style:{fontSize:12,fontWeight:700,color:"#e9d5ff"}}, "AI Recommendation이란?"),
+        /*#__PURE__*/React.createElement("span", {onClick:e=>{e.stopPropagation();setShowAiInfo(false);}, style:{fontSize:16,color:"rgba(255,255,255,0.4)",cursor:"pointer",lineHeight:1}}, "×")
+      ),
+      /*#__PURE__*/React.createElement("p", {style:{fontSize:11,color:"rgba(255,255,255,0.8)",lineHeight:1.8,margin:"0 0 10px"}},
+        "MBI 항목별 점수와 활동분석을 바탕으로 AI가 세부 치료목표를 제안합니다. 단순한 훈련 제안이 아닌, 현재 점수에서 한 단계 위 점수를 달성하기 위한 훈련 활동과 SMART 목표를 함께 제시합니다."
+      ),
+      /*#__PURE__*/React.createElement("div", {style:{background:"rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 12px",marginBottom:8}},
+        [
+          {l:"활동분석 기반", d:"세부 활동 단계 중 어느 부분이 훈련 표적인지 파악"},
+          {l:"MBI 채점 기준", d:"다음 단계 조건을 목표로 삼아 실제 측정 가능한 목표 설정"},
+          {l:"환자 정보 반영", d:"진단·발병시기·인지·보조자 등으로 더 개인화된 목표 제안"}
+        ].map((item,i) => /*#__PURE__*/React.createElement("div",{key:i,style:{marginBottom:i<2?6:0}},
+          /*#__PURE__*/React.createElement("span",{style:{fontSize:11,fontWeight:700,color:"#e9d5ff"}},item.l,": "),
+          /*#__PURE__*/React.createElement("span",{style:{fontSize:11,color:"rgba(255,255,255,0.75)"}},item.d)
+        ))
+      ),
+      /*#__PURE__*/React.createElement("p", {style:{fontSize:11,color:"rgba(255,255,255,0.6)",lineHeight:1.8,margin:0}},
+        "환자 정보 없이도 MBI 점수만으로 기본 목표를 제안하며, 환자 정보를 추가할수록 더 정교한 목표가 나옵니다."
+      )
+    )
+  )), /*#__PURE__*/React.createElement("div", {
+    style: {
+      margin: "12px 16px 0"
+    }
+  }, /*#__PURE__*/React.createElement(React.Fragment, null,
+  /*#__PURE__*/React.createElement("div", {
+    onClick: () => { setAiSheet(true); setSheetItem(null); setSheetText(""); },
+    style:{background:"white",borderRadius:16,padding:"13px 14px",marginBottom:10,boxShadow:"0 2px 12px rgba(15,39,68,0.06)",border:"1px solid rgba(0,0,0,0.03)",cursor:"pointer"}
+  }, /*#__PURE__*/React.createElement("div", {style:{display:"flex",alignItems:"center"}},
+    /*#__PURE__*/React.createElement("div", {style:{width:38,height:38,borderRadius:11,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,marginRight:12,background:"linear-gradient(135deg,#7c3aed,#2563eb)",color:"white",letterSpacing:-0.5}}, "AI"),
+    /*#__PURE__*/React.createElement("div", {style:{flex:1}},
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:15,fontWeight:800,background:"linear-gradient(90deg,#7c3aed,#2563eb)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",letterSpacing:-0.3}}, "ChatGPT로 세부항목 도움받기"),
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:11,color:"#6b7280",marginTop:3}}, "항목 선택 후 관찰 내용 입력 → AI 점수 제안")
+    ),
+    /*#__PURE__*/React.createElement("div", {style:{color:"#c0c0c0",fontSize:14}}, "›")
+  )),
+  /*#__PURE__*/React.createElement("div", {
+    style:{background:"white",borderRadius:18,padding:"16px 18px",boxShadow:"0 8px 24px rgba(15,39,68,0.15)",border:"1px solid rgba(0,0,0,0.04)"}
+  }, /*#__PURE__*/React.createElement("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+    /*#__PURE__*/React.createElement("div", null,
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:10,color:"#9ca3af",fontWeight:700,letterSpacing:1,marginBottom:4}}, "현재 점수"),
+      /*#__PURE__*/React.createElement("div", {style:{display:"flex",alignItems:"baseline",gap:3}},
+        /*#__PURE__*/React.createElement("span", {style:{fontSize:34,fontWeight:900,color:interp.color,lineHeight:1,letterSpacing:-1}}, total),
+        /*#__PURE__*/React.createElement("span", {style:{fontSize:14,color:"#9ca3af",fontWeight:500}}, "/ ", maxPoss)
+      ),
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:12,fontWeight:700,color:interp.color,marginTop:4,display:"flex",alignItems:"center",gap:4}},
+        /*#__PURE__*/React.createElement("span", {style:{width:6,height:6,borderRadius:"50%",background:interp.color,display:"inline-block"}}),
+        interp.en
+      )
+    ),
+    /*#__PURE__*/React.createElement("div", {style:{textAlign:"center"}},
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:10,color:"#9ca3af",fontWeight:700,letterSpacing:1,marginBottom:6}}, "진행률"),
+      /*#__PURE__*/React.createElement("svg", {width:72,height:72},
+        /*#__PURE__*/React.createElement("circle", {cx:36,cy:36,r:28,fill:"none",stroke:"#f3f4f6",strokeWidth:7}),
+        /*#__PURE__*/React.createElement("circle", {cx:36,cy:36,r:28,fill:"none",
+          stroke:done===0?"#e5e7eb":done<=3?"#ef4444":done<=6?"#eab308":done<=8?"#22c55e":"#3b82f6",
+          strokeWidth:7,strokeDasharray:(2*Math.PI*28*(done/10))+" "+(2*Math.PI*28*(1-done/10)),
+          strokeDashoffset:2*Math.PI*28/4,strokeLinecap:"butt",style:{transition:"stroke-dasharray .5s"}}),
+        /*#__PURE__*/React.createElement("text", {x:36,y:30,textAnchor:"middle",dominantBaseline:"middle",fontSize:16,fontWeight:900,
+          fill:done===0?"#9ca3af":done<=3?"#ef4444":done<=6?"#eab308":done<=8?"#22c55e":"#3b82f6",
+          fontFamily:"'Pretendard','Noto Sans KR',sans-serif"}, done),
+        /*#__PURE__*/React.createElement("text", {x:36,y:46,textAnchor:"middle",dominantBaseline:"middle",fontSize:9,fontWeight:600,fill:"#9ca3af",fontFamily:"'Pretendard','Noto Sans KR',sans-serif"}, "/10")
+      )
+    )
+  ),
+  /*#__PURE__*/React.createElement("div", {style:{marginTop:14}},
+    /*#__PURE__*/React.createElement("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}},
+      /*#__PURE__*/React.createElement("span", {style:{fontSize:9,color:"#9ca3af",fontWeight:700,letterSpacing:0.5}}, "0\uC810"),
+      /*#__PURE__*/React.createElement("span", {style:{fontSize:9,color:"#9ca3af",fontWeight:700,letterSpacing:0.5}}, "100\uC810")
+    ),
+    /*#__PURE__*/React.createElement("div", {style:{height:10,borderRadius:10,background:"#f3f4f6",overflow:"hidden",position:"relative"}},
+      /*#__PURE__*/React.createElement("div", {style:{
+        position:"absolute", left:0, top:0, bottom:0,
+        width: total + "%",
+        borderRadius:10,
+        background: total===0 ? "#e5e7eb" :
+          "linear-gradient(90deg," +
+          (total<=19 ? "#dc2626,#ef4444" :
+           total<=39 ? "#ea580c,#fb923c" :
+           total<=59 ? "#ca8a04,#facc15" :
+           total<=84 ? "#16a34a,#4ade80" :
+           total<=99 ? "#2563eb,#60a5fa" :
+                       "#7c3aed,#a78bfa") + ")",
+        transition:"width .6s ease",
+        boxShadow: total>0 ? "0 2px 6px " + interp.color + "60" : "none"
+      }})
+    )
+  ))
+)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "18px 16px 0"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+      paddingLeft: 4
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      fontWeight: 800,
+      color: "#1a1a2e",
+      letterSpacing: -0.2
+    }
+  }, "\uD3C9\uAC00 \uD56D\uBAA9"), /*#__PURE__*/React.createElement("button", {
+    onClick: resetAll,
+    style: {
+      background: "#16a34a",
+      border: "none",
+      borderRadius: 20,
+      fontSize: 11,
+      fontWeight: 700,
+      color: "white",
+      padding: "5px 12px",
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "\uD83D\uDD04 \uC810\uC218 \uCD08\uAE30\uD654")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: 16,
+      overflow: "hidden",
+      boxShadow: "0 2px 12px rgba(15,39,68,0.06)",
+      border: "1px solid rgba(0,0,0,0.03)"
+    }
+  }, ITEMS.map((item, idx) => {
+    const d = getData(item),
+      key = getKey(item.id),
+      sc = scores[key];
+    const entry = sc !== undefined ? d.scores.find(s => s.pts === sc) : null;
+    const color = GRADE_COLORS[entry?.label || ""] || "#9ca3af";
+    const vals = [...new Set(d.scores.map(s => s.pts))].sort((a, b) => a - b);
+    const isDone = sc !== undefined;
+    return /*#__PURE__*/React.createElement("div", {
+      key: item.id,
+      onClick: () => openItem(item),
+      style: {
+        padding: "12px 14px",
+        borderBottom: idx < ITEMS.length - 1 ? "1px solid #f3f4f6" : "none",
+        cursor: "pointer",
+        background: "white",
+        transition: "background .15s"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 38,
+        height: 38,
+        borderRadius: 11,
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 18,
+        marginRight: 12,
+        background: isDone ? `${color}15` : "#f3f4f6",
+        border: isDone ? `1.5px solid ${color}40` : "1.5px solid transparent",
+        transition: "all .2s"
+      }
+    }, d.icon || item.icon), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        minWidth: 0
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 6
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700,
+        color: "#1a1a2e",
+        letterSpacing: -0.2
+      }
+    }, d.kr || item.kr), isDone && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        fontWeight: 700,
+        color: "white",
+        background: color,
+        borderRadius: 20,
+        padding: "1px 7px",
+        flexShrink: 0
+      }
+    }, sc, "\uC810 \xB7 ", entry?.label))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 3,
+        marginLeft: 8,
+        flexShrink: 0
+      }
+    }, vals.map(sv => {
+      const act = sc === sv;
+      const dc = dotColor(vals, sv);
+      return /*#__PURE__*/React.createElement("div", {
+        key: sv,
+        style: {
+          width: 24,
+          height: 24,
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 9,
+          fontWeight: act ? 900 : 600,
+          background: act ? dc : dc + "12",
+          color: act ? "white" : dc + "99",
+          border: "1.5px solid " + (act ? dc : dc + "33"),
+          transform: act ? "scale(1.15)" : "scale(1)",
+          transition: "all .2s",
+          flexShrink: 0,
+          boxShadow: act ? "0 2px 8px " + dc + "70" : "none"
+        }
+      }, sv);
+    }))),   isDone && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "#6b7280",
+        marginTop: 6,
+        lineHeight: 1.5,
+        paddingLeft: 50
+      }
+    }, flowAnswers[key] || entry?.desc || ""));
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "16px 16px 40px"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => { setPage("result"); window.scrollTo(0,0); },
+    disabled: done === 0,
+    style: {
+      width: "100%",
+      padding: "15px",
+      background: done === 0 ? "#e5e7eb" : "linear-gradient(135deg,#0f2744,#0d6b6f)",
+      color: done === 0 ? "#9ca3af" : "white",
+      border: "none",
+      borderRadius: 14,
+      fontSize: 15,
+      fontWeight: 700,
+      cursor: done === 0 ? "not-allowed" : "pointer",
+      fontFamily: "inherit",
+      boxShadow: done === 0 ? "none" : "0 4px 14px rgba(13,107,111,0.3)",
+      letterSpacing: -0.2
+    }
+  }, "\uD83D\uDCCA \uACB0\uACFC \uBD84\uC11D ", done > 0 && `(${done}/${ITEMS.length})`)), confirmReset && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.5)",
+      zIndex: 200,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0 32px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: 18,
+      padding: "24px 20px",
+      width: "100%",
+      maxWidth: 320,
+      boxShadow: "0 20px 40px rgba(0,0,0,0.2)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 36,
+      textAlign: "center",
+      marginBottom: 12
+    }
+  }, "\uD83D\uDD04"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 16,
+      fontWeight: 800,
+      color: "#1a1a2e",
+      textAlign: "center",
+      marginBottom: 8
+    }
+  }, "\uCD08\uAE30\uD654 \uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: "#6b7280",
+      textAlign: "center",
+      lineHeight: 1.6,
+      marginBottom: 20
+    }
+  }, "\uBAA8\uB4E0 \uD56D\uBAA9\uC758 \uD3C9\uAC00 \uC810\uC218\uAC00", /*#__PURE__*/React.createElement("br", null), "\uC0AD\uC81C\uB429\uB2C8\uB2E4"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setConfirmReset(false),
+    style: {
+      flex: 1,
+      padding: "13px",
+      background: "#f3f4f6",
+      border: "none",
+      borderRadius: 12,
+      fontSize: 15,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      color: "#374151"
+    }
+  }, "\uCDE8\uC18C"), /*#__PURE__*/React.createElement("button", {
+    onClick: doReset,
+    style: {
+      flex: 1,
+      padding: "13px",
+      background: "#059669",
+      border: "none",
+      borderRadius: 12,
+      fontSize: 15,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      color: "white"
+    }
+  }, "\uD655\uC778")))), aiSheet && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.55)",
+      zIndex: 100,
+      display: "flex",
+      alignItems: "flex-end",
+      justifyContent: "center"
+    },
+    onClick: () => setAiSheet(false)
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: "20px 20px 0 0",
+      padding: "20px 18px 40px",
+      width: "100%",
+      maxWidth: 480,
+      maxHeight: "88vh",
+      overflowY: "auto"
+    },
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 16,
+      fontWeight: 800,
+      color: "#1a1a2e"
+    }
+  }, "\uD83E\uDD16 AI \uCC44\uC810 \uBCF4\uC870"), /*#__PURE__*/React.createElement("button", {
+    style: {
+      background: "#f3f4f6",
+      border: "none",
+      borderRadius: 999,
+      width: 28,
+      height: 28,
+      cursor: "pointer",
+      fontSize: 14,
+      color: "#6b7280"
+    },
+    onClick: () => setAiSheet(false)
+  }, "\u2715")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: "#6b7280",
+      letterSpacing: 0.8,
+      marginBottom: 8
+    }
+  }, "\uD3C9\uAC00 \uD56D\uBAA9 \uC120\uD0DD"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 6
+    }
+  }, ITEMS.map(item => {
+    const d = getData(item);
+    const sel = sheetItem?.id === item.id;
+    return /*#__PURE__*/React.createElement("button", {
+      key: item.id,
+      onClick: () => setSheetItem(item),
+      style: {
+        padding: "7px 12px",
+        borderRadius: 20,
+        border: `1.5px solid ${sel ? "#7c3aed" : "#e5e7eb"}`,
+        background: sel ? "#7c3aed" : "white",
+        color: sel ? "white" : "#374151",
+        fontSize: 12,
+        fontWeight: sel ? 700 : 500,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        display: "flex",
+        alignItems: "center",
+        gap: 5,
+        transition: "all .15s"
+      }
+    }, /*#__PURE__*/React.createElement("span", null, d.icon || item.icon), /*#__PURE__*/React.createElement("span", null, d.kr || item.kr));
+  }))), sheetItem && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: "#6b7280",
+      letterSpacing: 0.8,
+      marginBottom: 8
+    }
+  }, "\uAD00\uCC30 \uB0B4\uC6A9 \uC785\uB825"), /*#__PURE__*/React.createElement("textarea", {
+    value: sheetText,
+    onChange: e => setSheetText(e.target.value),
+    placeholder: getData(sheetItem).kr + " 항목에서 관찰한 내용을 자유롭게 입력하세요.",
+    style: {
+      width: "100%",
+      minHeight: 120,
+      padding: 12,
+      borderRadius: 12,
+      border: "1.5px solid #e5e7eb",
+      fontSize: 16,
+      lineHeight: 1.65,
+      resize: "none",
+      fontFamily: "inherit",
+      outline: "none",
+      boxSizing: "border-box",
+      color: "#1a1a2e"
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    disabled: aiLoading || !sheetText.trim(),
+    onClick: async () => {
+      const item = sheetItem;
+      const d = getData(item);
+      const criteria = d.scores.map(s => `${s.pts}점 (${s.label}): ${s.desc}`).join("\n");
+      setAiLoading(true);
+      try {
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer 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"
+          },
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            max_tokens: 400,
+            temperature: 0.2,
+            messages: [{
+              role: "system",
+              content: 'K-MBI 전문가. JSON만 출력: {"score":숫자,"label":"등급명","reason":"판단이유 50자이내"}'
+            }, {
+              role: "user",
+              content: "항목: " + (d.kr || item.kr) + "\n채점기준:\n" + criteria + "\n관찰내용: \"" + sheetText + "\"" + "\nJSON만:"
+            }]
+          })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        const raw = (data.choices?.[0]?.message?.content || "").replace(/```json|```/g, "").trim();
+        const parsed = JSON.parse(raw);
+        if (parsed.score !== undefined) setScores(p => ({
+          ...p,
+          [getKey(item.id)]: parsed.score
+        }));
+        setAiSheet(false);
+        setAiModal({
+          item,
+          data: d,
+          result: parsed,
+          text: sheetText,
+          flowQA: []
+        });
+      } catch (e) {
+        setAiModal({
+          error: true,
+          msg: e.message || "오류가 발생했습니다."
+        });
+        setAiSheet(false);
+      }
+      setAiLoading(false);
+    },
+    style: {
+      marginTop: 10,
+      width: "100%",
+      padding: 14,
+      background: aiLoading || !sheetText.trim() ? "#e5e7eb" : "linear-gradient(135deg,#7c3aed,#4f46e5)",
+      color: aiLoading || !sheetText.trim() ? "#9ca3af" : "white",
+      border: "none",
+      borderRadius: 12,
+      fontSize: 14,
+      fontWeight: 700,
+      cursor: aiLoading || !sheetText.trim() ? "not-allowed" : "pointer",
+      fontFamily: "inherit",
+      boxShadow: aiLoading || !sheetText.trim() ? "none" : "0 4px 12px rgba(124,58,237,0.3)"
+    }
+  }, aiLoading ? "🔄 분석 중..." : "💬 ChatGPT로 분석")))), resultModal && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.6)",
+      zIndex: 100,
+      display: "flex",
+      alignItems: "flex-end",
+      justifyContent: "center"
+    },
+    onClick: () => setResultModal(null)
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: "20px 20px 0 0",
+      padding: "20px 18px 40px",
+      width: "100%",
+      maxWidth: 480,
+      maxHeight: "88vh",
+      overflowY: "auto"
+    },
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 16,
+      fontWeight: 800
+    }
+  }, "\uD83D\uDCA1 ChatGPT \uACB0\uACFC \uBD84\uC11D"), /*#__PURE__*/React.createElement("button", {
+    style: {
+      background: "#f3f4f6",
+      border: "none",
+      borderRadius: 999,
+      width: 28,
+      height: 28,
+      cursor: "pointer",
+      fontSize: 14
+    },
+    onClick: () => setResultModal(null)
+  }, "\u2715")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#f0fdf9",
+      borderRadius: 12,
+      padding: "10px 14px",
+      marginBottom: 12,
+      fontSize: 12,
+      color: "#6b7280"
+    }
+  }, "K-MBI \uCD1D\uC810 ", /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: getInterp(resultModal.total).color,
+      fontSize: 15
+    }
+  }, resultModal.total), " / ", resultModal.maxPoss, "점"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: "#374151",
+      lineHeight: 1.9,
+      whiteSpace: "pre-wrap"
+    }
+  }, resultModal.text), /*#__PURE__*/React.createElement("button", {
+    style: {
+      width: "100%",
+      padding: 12,
+      background: "#f3f4f6",
+      border: "none",
+      borderRadius: 12,
+      fontSize: 14,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      marginTop: 16,
+      color: "#374151",
+      fontWeight: 600
+    },
+    onClick: () => setResultModal(null)
+  }, "\uB2EB\uAE30"))), aiModal && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.5)",
+      zIndex: 100,
+      display: "flex",
+      alignItems: "flex-end",
+      justifyContent: "center"
+    },
+    onClick: () => setAiModal(null)
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: "20px 20px 0 0",
+      padding: "20px 18px 32px",
+      width: "100%",
+      maxWidth: 480,
+      maxHeight: "85vh",
+      overflowY: "auto"
+    },
+    onClick: e => e.stopPropagation()
+  }, aiModal.error ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 16,
+      fontSize: 16,
+      fontWeight: 800
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "\uBD84\uC11D \uC624\uB958"), /*#__PURE__*/React.createElement("button", {
+    style: {
+      background: "#f3f4f6",
+      border: "none",
+      borderRadius: 999,
+      width: 28,
+      height: 28,
+      cursor: "pointer",
+      fontSize: 14
+    },
+    onClick: () => setAiModal(null)
+  }, "\u2715")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#dc2626",
+      textAlign: "center",
+      padding: "16px 0",
+      fontSize: 14
+    }
+  }, aiModal.msg || "오류가 발생했습니다. 다시 시도해주세요."), /*#__PURE__*/React.createElement("button", {
+    style: {
+      width: "100%",
+      padding: 12,
+      background: "#f3f4f6",
+      border: "none",
+      borderRadius: 12,
+      fontSize: 14,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    },
+    onClick: () => setAiModal(null)
+  }, "\uB2EB\uAE30")) : (() => {
+    const r = aiModal.result,
+      color = GRADE_COLORS[r.label] || "#7c3aed";
+    const entry = aiModal.data?.scores.find(s => s.pts === r.score);
+    const gradeNum = aiModal.data?.scores.indexOf(entry) + 1;
+    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 16,
+        fontSize: 16,
+        fontWeight: 800
+      }
+    }, /*#__PURE__*/React.createElement("span", null, aiModal.item?.icon, " ", aiModal.data?.kr, " \uBD84\uC11D"), /*#__PURE__*/React.createElement("button", {
+      style: {
+        background: "#f3f4f6",
+        border: "none",
+        borderRadius: 999,
+        width: 28,
+        height: 28,
+        cursor: "pointer",
+        fontSize: 14
+      },
+      onClick: () => setAiModal(null)
+    }, "\u2715")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: "#f8f8ff",
+        borderRadius: 12,
+        padding: "8px 14px",
+        marginBottom: 12,
+        fontSize: 12,
+        color: "#6b7280"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 600,
+        color: "#374151",
+        marginBottom: 2
+      }
+    }, "\uC785\uB825 \uB0B4\uC6A9"), "\"", aiModal.text, "\""), /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: `${color}10`,
+        borderRadius: 14,
+        padding: 16,
+        textAlign: "center",
+        marginBottom: 12
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 44,
+        fontWeight: 900,
+        color,
+        lineHeight: 1
+      }
+    }, r.score), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 16,
+        color: "#9ca3af"
+      }
+    }, "/", aiModal.data?.maxPts, "점"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 16,
+        fontWeight: 700,
+        color,
+        marginTop: 4
+      }
+    }, gradeNum, "\uB4F1\uAE09 \u2014 ", r.label)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginBottom: 10
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: "#6b7280",
+        marginBottom: 5
+      }
+    }, "\uD83D\uDCAC \uD310\uB2E8 \uC774\uC720"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        color: "#374151",
+        lineHeight: 1.6
+      }
+    }, r.reason)), entry && /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: "#f8fafc",
+        borderRadius: 10,
+        padding: "10px 12px",
+        marginBottom: 10
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: "#6b7280",
+        marginBottom: 4
+      }
+    }, "\uD83D\uDCCB ", gradeNum, "\uB4F1\uAE09 \uAE30\uC900 \uC6D0\uBB38 (K-MBI)"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        color: "#374151",
+        lineHeight: 1.55
+      }
+    }, entry.desc)), aiModal.flowQA?.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginBottom: 12
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: "#6b7280",
+        marginBottom: 6
+      }
+    }, "\u2705 \uD655\uC778 \uC9C8\uBB38 \uB2F5\uBCC0"), aiModal.flowQA.map((qa, i) => /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        fontSize: 12,
+        padding: "5px 0",
+        borderBottom: "1px solid #f3f4f6"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "#374151",
+        flex: 1,
+        marginRight: 8
+      }
+    }, qa.q), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 700,
+        color: qa.ans === "yes" ? "#059669" : "#dc2626",
+        flexShrink: 0
+      }
+    }, qa.ans === "yes" ? "예" : "아니오")))), /*#__PURE__*/React.createElement("button", {
+      style: {
+        width: "100%",
+        padding: 14,
+        background: color,
+        color: "white",
+        border: "none",
+        borderRadius: 14,
+        fontSize: 15,
+        fontWeight: 800,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        marginBottom: 8
+      },
+      onClick: () => {
+        setScores(p => ({...p, [getKey(aiModal.item.id)]: r.score}));
+        setAiModal(null);
+        setFlowStep("done");
+      }
+    }, "\uC774 \uC810\uC218\uB85C \uC801\uC6A9\uD558\uAE30 (", r.score, "\uC810)"), /*#__PURE__*/React.createElement("button", {
+      style: {
+        width: "100%",
+        padding: 11,
+        background: "#f3f4f6",
+        border: "none",
+        borderRadius: 12,
+        fontSize: 14,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        color: "#6b7280"
+      },
+      onClick: () => setAiModal(null)
+    }, "\uB2EB\uAE30"));
+  })())));
+
+  // ────── ASSESS ──────────────────────────────────────────
+  if (page === "assess" && activeItem && activeData) return /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Pretendard','Noto Sans KR',sans-serif",
+      background: "#f2f4f7",
+      minHeight: "100vh",
+      paddingBottom: 40
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "linear-gradient(90deg,#0f2744,#0d6b6f)",
+      color: "white",
+      padding: "13px 16px",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      position: "sticky",
+      top: 0,
+      zIndex: 10
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    style: {
+      background: "none",
+      color: "#7dd3fc",
+      border: "none",
+      cursor: "pointer",
+      fontSize: 14,
+      fontFamily: "inherit"
+    },
+    onClick: () => { setPage("home"); window.scrollTo(0,0); }
+  }, "\u2190 \uBAA9\uB85D"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 15,
+      fontWeight: 800
+    }
+  }, activeItem.id, ". ", activeData.kr || activeItem.kr)), /*#__PURE__*/React.createElement("button", {
+    style: {
+      background: "none",
+      color: "#7dd3fc",
+      border: "none",
+      cursor: "pointer",
+      fontSize: 14,
+      fontFamily: "inherit",
+      display: "flex",
+      alignItems: "center",
+      gap: 4
+    },
+    onClick: () => {
+      const idx = ITEMS.findIndex(i => i.id === activeId);
+      if (idx < ITEMS.length - 1) openItem(ITEMS[idx + 1]);
+      else { setPage("result"); window.scrollTo(0,0); }
+    }
+  }, activeId < 10 ? "\uB2E4\uC74C" : "\uACB0\uACFC", " \u2192")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "12px 14px 60px"
+    }
+  }, activeItem.id === 9 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: 12,
+      padding: "12px 14px",
+      marginBottom: 10,
+      boxShadow: "0 1px 4px rgba(0,0,0,0.06)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: "#6b7280",
+      marginBottom: 8
+    }
+  }, "\uD3C9\uAC00 \uBC29\uC2DD \uC120\uD0DD"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    style: {
+      flex: 1,
+      padding: "10px",
+      borderRadius: 10,
+      border: `2px solid ${!useWc ? "#0d6b6f" : "#e5e7eb"}`,
+      background: !useWc ? "#e8f5f5" : "white",
+      color: !useWc ? "#0d6b6f" : "#6b7280",
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    },
+    onClick: () => {
+      setUseWc(false);
+      setFlowStep("q1");
+      setFlowHist([]);
+    }
+  }, "\uD83D\uDEB6 \uBCF4\uD589"), /*#__PURE__*/React.createElement("button", {
+    style: {
+      flex: 1,
+      padding: "10px",
+      borderRadius: 10,
+      border: `2px solid ${useWc ? "#0d6b6f" : "#e5e7eb"}`,
+      background: useWc ? "#e8f5f5" : "white",
+      color: useWc ? "#0d6b6f" : "#6b7280",
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    },
+    onClick: () => {
+      setUseWc(true);
+      setFlowStep("q1");
+      setFlowHist([]);
+    }
+  }, "\u267F \uD720\uCCB4\uC5B4"))), activeData.acts && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#FFFBEA",
+      border: "1px solid #FFE68A",
+      borderRadius: 12,
+      padding: "12px 14px",
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      fontWeight: 800,
+      color: "#92650A"
+    }
+  }, "\uD83D\uDCCB \uD65C\uB3D9\uBD84\uC11D"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowActs(v => !v),
+    style: {
+      fontSize: 11,
+      color: "white",
+      background: showActs ? "#dc2626" : "#16a34a",
+      border: "none",
+      borderRadius: 20,
+      padding: "3px 10px",
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, showActs ? "\uD65C\uB3D9\uBD84\uC11D \uB2EB\uAE30" : "\uD65C\uB3D9\uBD84\uC11D \uBAA8\uB450\uC5F4\uAE30")), activeData.acts.map((act, i) => /*#__PURE__*/React.createElement(ActItem, {
+    key: i,
+    act: act,
+    isLast: i === activeData.acts.length - 1,
+    expandAll: showActs
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 10,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.07)"
+    }
+  }, flowStep === "done" ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      padding: "6px 0 14px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 48,
+      fontWeight: 900,
+      color: GRADE_COLORS[curEntry?.label || ""] || "#0d6b6f",
+      lineHeight: 1
+    }
+  }, curSc, "점"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 17,
+      fontWeight: 700,
+      color: GRADE_COLORS[curEntry?.label || ""] || "#0d6b6f",
+      marginTop: 6
+    }
+  }, curEntry?.label)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: "1px solid #f3f4f6",
+      paddingTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10}
+  },
+    /*#__PURE__*/React.createElement("span", {style:{fontSize:11, fontWeight:700, color:"#9ca3af", letterSpacing:0.5}}, "\uB4F1\uAE09\uBCC4 \uAE30\uC900 \uCC38\uACE0"),
+    curSc !== undefined && /*#__PURE__*/React.createElement("span", {
+      onClick: () => setShowAllGrades(v => !v),
+      style:{fontSize:10, fontWeight:700, cursor:"pointer", color:"white",
+        background: showAllGrades ? "#6b7280" : (GRADE_COLORS[curEntry?.label||""]||"#6b7280"),
+        padding:"3px 10px", borderRadius:20, transition:"all .15s"}
+    }, showAllGrades ? "\uD604\uC7AC\uB9CC \uBCF4\uAE30" : "\uB2E4\uB978 \uC810\uC218 \uC120\uD0DD\uD558\uAE30")
+  ),
+  curSc === undefined && !showAllGrades ?
+    /*#__PURE__*/React.createElement("div", {style:{fontSize:12, color:"#9ca3af", padding:"8px 0"}}, "\uC810\uC218\uB97C \uC120\uD0DD\uD558\uBA74 \uD574\uB2F9 \uB4F1\uAE09 \uAE30\uC900\uC774 \uD45C\uC2DC\uB429\uB2C8\uB2E4.") :
+  (showAllGrades ? activeData.scores : activeData.scores.filter(s => s.pts === curSc)).map(s => {
+    const isSel = curSc === s.pts;
+    const color = GRADE_COLORS[s.label] || "#9ca3af";
+    const isOther = showAllGrades && !isSel;
+    const handleClick = () => {
+      if (isOther && curSc !== undefined) setConfirmGrade(s);
+      else if (isOther) { setScores(p=>({...p,[getKey(activeItem.id)]:s.pts})); setShowAllGrades(false); }
+    };
+    return /*#__PURE__*/React.createElement("div", {
+      key: s.pts,
+      style:{padding:"10px 12px", borderRadius:10,
+        border:"2px solid "+(isSel?color:isOther?"#e5e7eb":"#f3f4f6"),
+        background:isSel?color+"0d":"#fafafa", marginBottom:8,
+        cursor:isOther?"pointer":"default", opacity:showAllGrades&&!isSel?0.85:1, transition:"all .15s"},
+      onClick: handleClick
+    },
+      /*#__PURE__*/React.createElement("div", {style:{display:"flex", alignItems:"center"}},
+        /*#__PURE__*/React.createElement("span", {style:{fontSize:18, fontWeight:900, color}}, s.pts),
+        /*#__PURE__*/React.createElement("span", {style:{fontSize:13, fontWeight:700, color, marginLeft:6}}, s.label),
+        isSel && /*#__PURE__*/React.createElement("span", {style:{marginLeft:"auto", fontSize:11, background:color, color:"white", padding:"2px 8px", borderRadius:20, fontWeight:600}}, "\u2713 \uD604\uC7AC"),
+        isOther && /*#__PURE__*/React.createElement("span", {style:{marginLeft:"auto", fontSize:10, color:"#9ca3af"}}, "\uD0ED\uD558\uBA74 \uBCC0\uACBD")
+      ),
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:12, color:"#4b5563", lineHeight:1.55, marginTop:4}}, s.desc),
+      s.note && /*#__PURE__*/React.createElement("div", {style:{fontSize:11, color:"#0d6b6f", marginTop:3}}, "\uD83D\uDCA1 ", s.note)
+    );
+  }),
+  confirmGrade && /*#__PURE__*/React.createElement("div", {style:{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20}},
+    /*#__PURE__*/React.createElement("div", {style:{background:"white",borderRadius:16,padding:24,width:"100%",maxWidth:320}},
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:15,fontWeight:700,marginBottom:8}}, "\uC810\uC218\uB97C \uBCC0\uACBD\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?"),
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:13,color:"#6b7280",marginBottom:6}},
+        "\uD604\uC7AC: ", /*#__PURE__*/React.createElement("b", {style:{color:GRADE_COLORS[curEntry?.label||""]||"#374151"}}, curSc, "\uC810 (", curEntry?.label, ")")
+      ),
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:13,color:"#6b7280",marginBottom:20}},
+        "\uBCC0\uACBD: ", /*#__PURE__*/React.createElement("b", {style:{color:GRADE_COLORS[confirmGrade.label]||"#374151"}}, confirmGrade.pts, "\uC810 (", confirmGrade.label, ")")
+      ),
+      /*#__PURE__*/React.createElement("div", {style:{display:"flex",gap:8}},
+        /*#__PURE__*/React.createElement("button", {onClick:()=>setConfirmGrade(null), style:{flex:1,padding:"11px",background:"#f3f4f6",border:"none",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer"}}, "\uCDE8\uC18C"),
+        /*#__PURE__*/React.createElement("button", {
+          onClick:()=>{setScores(p=>({...p,[getKey(activeItem.id)]:confirmGrade.pts}));setConfirmGrade(null);setShowAllGrades(false);},
+          style:{flex:1,padding:"11px",background:"#16a34a",color:"white",border:"none",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer"}
+        }, "\uD655\uC778")
+      )
+    )
+  )
+), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      marginTop: 4
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    style: {
+      flex: 1,
+      padding: "11px",
+      background: "#0f2744",
+      color: "white",
+      border: "none",
+      borderRadius: 12,
+      fontSize: 14,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    },
+    onClick: () => { setPage("home"); window.scrollTo(0,0); }
+  }, "\u2190 \uBAA9\uB85D\uC73C\uB85C"), /*#__PURE__*/React.createElement("button", {
+    style: {
+      flex: 1,
+      padding: "11px",
+      background: "#eef2f7",
+      border: "none",
+      borderRadius: 12,
+      fontSize: 13,
+      fontWeight: 600,
+      cursor: "pointer",
+      color: "#7a8a9a",
+      fontFamily: "inherit"
+    },
+    onClick: () => {
+      setFlowStep("q1");
+      setFlowHist([]);
+      setScores(p => {
+        const n = {
+          ...p
+        };
+        delete n[getKey(activeItem.id)];
+        return n;
+      });
+    }
+  }, "\u21BA \uB2E4\uC2DC \uD3C9\uAC00"))) : flowNode ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "#9ca3af",
+      fontWeight: 700,
+      marginBottom: 7
+    }
+  }, "\uC9C8\uBB38 ", stepIdx + 1, " / ", activeData.flow.length), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: 4,
+      background: "#eef2f7",
+      borderRadius: 3,
+      marginBottom: 16,
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: "100%",
+      width: `${(stepIdx + 1) / activeData.flow.length * 100}%`,
+      background: "#0d6b6f",
+      borderRadius: 3,
+      transition: "width .3s"
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 15,
+      fontWeight: 600,
+      lineHeight: 1.65,
+      marginBottom: 20,
+      color: "#1a1a2e"
+    }
+  }, flowNode.q), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    style: {
+      flex: 1,
+      padding: 13,
+      background: "#0d6b6f",
+      color: "white",
+      border: "none",
+      borderRadius: 12,
+      fontSize: 15,
+      fontWeight: 800,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    },
+    onClick: () => handleFlow("yes")
+  }, "\uC608 \xA0(Yes)"), /*#__PURE__*/React.createElement("button", {
+    style: {
+      flex: 1,
+      padding: 13,
+      background: "#eef2f7",
+      color: "#1a1a2e",
+      border: "none",
+      borderRadius: 12,
+      fontSize: 15,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    },
+    onClick: () => handleFlow("no")
+  }, "\uC544\uB2C8\uC624 \xA0(No)")), flowHist.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    style: {
+      marginTop: 10,
+      padding: "7px 16px",
+      background: "none",
+      border: "1.5px solid #e5e7eb",
+      borderRadius: 20,
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: "pointer",
+      color: "#7a8a9a",
+      fontFamily: "inherit"
+    },
+    onClick: undoFlow
+  }, "\u2190 \uC774\uC804\uC73C\uB85C"))) : null), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: 12,
+      padding: "14px 16px",
+      marginBottom: 10,
+      boxShadow: "0 1px 4px rgba(0,0,0,0.06)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700,
+      color: "#0d6b6f",
+      marginBottom: 10
+    }
+  }, "\uD83E\uDD16 ChatGPT AI \uBD84\uC11D"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "#7a8a9a",
+      lineHeight: 1.6,
+      marginBottom: 10
+    }
+  }, "\uAD00\uCC30\uD55C \uB0B4\uC6A9\uC744 \uC785\uB825\uD558\uBA74 ChatGPT(GPT-4o)\uAC00 \uBD84\uC11D\uD558\uC5EC K-MBI \uC810\uC218\uB97C \uC81C\uC548\uD569\uB2C8\uB2E4.", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#0d6b6f",
+      fontWeight: 600
+    }
+  }, "\uC608: \"\uD658\uC790\uAC00 \uC21F\uAC00\uB77D\uC740 \uC7A1\uC9C0\uB9CC \uC785\uAE4C\uC9C0 \uAC00\uC838\uC624\uB294 \uB370 \uB3C4\uC6C0\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.\"")), /*#__PURE__*/React.createElement("textarea", {
+    value: aiText,
+    onChange: e => setAiText(e.target.value),
+    placeholder: `${activeData.kr} 항목에서 관찰한 내용을 입력하세요...`,
+    style: {
+      width: "100%",
+      minHeight: 100,
+      padding: 12,
+      borderRadius: 10,
+      border: "1.5px solid #dde3ed",
+      fontSize: 16,
+      lineHeight: 1.5,
+      resize: "vertical",
+      fontFamily: "inherit",
+      outline: "none",
+      boxSizing: "border-box"
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    disabled: aiLoading || !aiText.trim(),
+    onClick: analyzeAI,
+    style: {
+      marginTop: 10,
+      width: "100%",
+      padding: 13,
+      background: aiLoading || !aiText.trim() ? "#dde3ed" : "#10a37f",
+      color: aiLoading || !aiText.trim() ? "#9ca3af" : "white",
+      border: "none",
+      borderRadius: 10,
+      fontSize: 14,
+      fontWeight: 800,
+      cursor: aiLoading || !aiText.trim() ? "not-allowed" : "pointer",
+      fontFamily: "inherit"
+    }
+  }, aiLoading ? "🔄 분석 중..." : "💬 ChatGPT로 분석"))), aiModal && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.5)",
+      zIndex: 100,
+      display: "flex",
+      alignItems: "flex-end",
+      justifyContent: "center"
+    },
+    onClick: () => setAiModal(null)
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: "20px 20px 0 0",
+      padding: "20px 18px 32px",
+      width: "100%",
+      maxWidth: 480,
+      maxHeight: "85vh",
+      overflowY: "auto"
+    },
+    onClick: e => e.stopPropagation()
+  }, aiModal.error ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 16,
+      fontSize: 16,
+      fontWeight: 800
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "\uBD84\uC11D \uC624\uB958"), /*#__PURE__*/React.createElement("button", {
+    style: {
+      background: "#f3f4f6",
+      border: "none",
+      borderRadius: 999,
+      width: 28,
+      height: 28,
+      cursor: "pointer",
+      fontSize: 14
+    },
+    onClick: () => setAiModal(null)
+  }, "\u2715")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#dc2626",
+      textAlign: "center",
+      padding: "16px 0",
+      fontSize: 14
+    }
+  }, aiModal.msg || "오류가 발생했습니다. 다시 시도해주세요."), /*#__PURE__*/React.createElement("button", {
+    style: {
+      width: "100%",
+      padding: 12,
+      background: "#f3f4f6",
+      border: "none",
+      borderRadius: 12,
+      fontSize: 14,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    },
+    onClick: () => setAiModal(null)
+  }, "\uB2EB\uAE30")) : (() => {
+    const r = aiModal.result,
+      color = GRADE_COLORS[r.label] || "#7c3aed";
+    const entry = aiModal.data?.scores.find(s => s.pts === r.score);
+    const gradeNum = aiModal.data?.scores.indexOf(entry) + 1;
+    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 16,
+        fontSize: 16,
+        fontWeight: 800
+      }
+    }, /*#__PURE__*/React.createElement("span", null, aiModal.item?.icon, " ", aiModal.data?.kr, " \uBD84\uC11D"), /*#__PURE__*/React.createElement("button", {
+      style: {
+        background: "#f3f4f6",
+        border: "none",
+        borderRadius: 999,
+        width: 28,
+        height: 28,
+        cursor: "pointer",
+        fontSize: 14
+      },
+      onClick: () => setAiModal(null)
+    }, "\u2715")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: "#f8f8ff",
+        borderRadius: 12,
+        padding: "8px 14px",
+        marginBottom: 12,
+        fontSize: 12,
+        color: "#6b7280"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 600,
+        color: "#374151",
+        marginBottom: 2
+      }
+    }, "\uC785\uB825 \uB0B4\uC6A9"), "\"", aiModal.text, "\""), /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: `${color}10`,
+        borderRadius: 14,
+        padding: 16,
+        textAlign: "center",
+        marginBottom: 12
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 44,
+        fontWeight: 900,
+        color,
+        lineHeight: 1
+      }
+    }, r.score), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 16,
+        color: "#9ca3af"
+      }
+    }, "/", aiModal.data?.maxPts, "점"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 16,
+        fontWeight: 700,
+        color,
+        marginTop: 4
+      }
+    }, gradeNum, "\uB4F1\uAE09 \u2014 ", r.label)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginBottom: 10
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: "#6b7280",
+        marginBottom: 5
+      }
+    }, "\uD83D\uDCAC \uD310\uB2E8 \uC774\uC720"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        color: "#374151",
+        lineHeight: 1.6
+      }
+    }, r.reason)), entry && /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: "#f8fafc",
+        borderRadius: 10,
+        padding: "10px 12px",
+        marginBottom: 10
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: "#6b7280",
+        marginBottom: 4
+      }
+    }, "\uD83D\uDCCB ", gradeNum, "\uB4F1\uAE09 \uAE30\uC900 \uC6D0\uBB38 (K-MBI)"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        color: "#374151",
+        lineHeight: 1.55
+      }
+    }, entry.desc)), aiModal.flowQA?.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginBottom: 12
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: "#6b7280",
+        marginBottom: 6
+      }
+    }, "\u2705 \uD655\uC778 \uC9C8\uBB38 \uB2F5\uBCC0"), aiModal.flowQA.map((qa, i) => /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        fontSize: 12,
+        padding: "5px 0",
+        borderBottom: "1px solid #f3f4f6"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "#374151",
+        flex: 1,
+        marginRight: 8
+      }
+    }, qa.q), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 700,
+        color: qa.ans === "yes" ? "#059669" : "#dc2626",
+        flexShrink: 0
+      }
+    }, qa.ans === "yes" ? "예" : "아니오")))), /*#__PURE__*/React.createElement("button", {
+      style: {
+        width: "100%",
+        padding: 14,
+        background: color,
+        color: "white",
+        border: "none",
+        borderRadius: 14,
+        fontSize: 15,
+        fontWeight: 800,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        marginBottom: 8
+      },
+      onClick: () => {
+        setScores(p => ({...p, [getKey(aiModal.item.id)]: r.score}));
+        setAiModal(null);
+        setActiveId(aiModal.item.id);
+        setFlowStep("done");
+        setFlowHist([]);
+        setPage("assess"); window.scrollTo(0,0);
+      }
+    }, "\uC774 \uC810\uC218\uB85C \uC801\uC6A9\uD558\uAE30 (", r.score, "\uC810)"), /*#__PURE__*/React.createElement("button", {
+      style: {
+        width: "100%",
+        padding: 11,
+        background: "#f3f4f6",
+        border: "none",
+        borderRadius: 12,
+        fontSize: 14,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        color: "#6b7280"
+      },
+      onClick: () => setAiModal(null)
+    }, "\uB2EB\uAE30"));
+  })())));
+
+  // ────── RESULT ────────────────────────────────────────────
+  if (page === "result") return /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Pretendard','Noto Sans KR',sans-serif",
+      background: "#f2f4f7",
+      minHeight: "100vh",
+      paddingBottom: 40
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#1a3a6e",
+      color: "white",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "12px 16px",
+      position: "sticky",
+      top: 0,
+      zIndex: 10
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    style: {
+      background: "none",
+      color: "#7dd3fc",
+      border: "none",
+      cursor: "pointer",
+      fontSize: 14,
+      fontFamily: "inherit"
+    },
+    onClick: () => { setPage("home"); window.scrollTo(0,0); }
+  }, "\u2190 \uBAA9\uB85D"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 700,
+      fontSize: 15
+    }
+  }, "\uD3C9\uAC00 \uACB0\uACFC"), /*#__PURE__*/React.createElement("button", {
+    style: {
+      background: "rgba(255,255,255,0.15)",
+      border: "1px solid rgba(255,255,255,0.3)",
+      borderRadius: 20,
+      color: "white",
+      fontSize: 12,
+      fontWeight: 700,
+      padding: "5px 12px",
+      cursor: "pointer",
+      fontFamily: "inherit"
+    },
+    onClick: share
+  }, "\uD83D\uDCE4 \uACF5\uC720")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "14px 14px 60px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: 14,
+      padding: "18px 16px",
+      marginBottom: 10,
+      textAlign: "center",
+      boxShadow: "0 1px 6px rgba(0,0,0,0.06)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "#9ca3af",
+      fontWeight: 600,
+      marginBottom: 6
+    }
+  }, "K-MBI \uCD1D\uC810"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "baseline",
+      justifyContent: "center",
+      gap: 2
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 56,
+      fontWeight: 900,
+      color: interp.color,
+      lineHeight: 1
+    }
+  }, total), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 18,
+      color: "#9ca3af"
+    }
+  }, " / ", maxPoss)), done === ITEMS.length ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "inline-block",
+      background: interp.color,
+      color: "white",
+      borderRadius: 20,
+      padding: "4px 18px",
+      fontSize: 15,
+      fontWeight: 700,
+      marginTop: 8
+    }
+  }, interp.label) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "#dc2626",
+      marginTop: 8
+    }
+  }, "\uBBF8\uC644\uC131 (", done, "/10 \uC644\uB8CC) \xB7 For reference only"),
+  done > 0 && /*#__PURE__*/React.createElement("div", {style:{display:"flex",justifyContent:"center",gap:16,marginTop:12,padding:"10px 14px",background:interp.pastel||"#f0f9ff",borderRadius:12}},
+    /*#__PURE__*/React.createElement("div", {style:{textAlign:"center"}},
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:10,color:"#6b7280",fontWeight:600,marginBottom:2}}, "\uC758\uC874 \uC218\uC900"),
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:14,fontWeight:800,color:interp.color}}, interp.en||interp.label)
+    ),
+    interp.hours && interp.hours!=="-" && /*#__PURE__*/React.createElement("div", {style:{width:1,background:"#e5e7eb"}}),
+    interp.hours && interp.hours!=="-" && /*#__PURE__*/React.createElement("div", {style:{textAlign:"center"}},
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:10,color:"#6b7280",fontWeight:600,marginBottom:2}}, "\uC8FC\uB2F9 \uB3C4\uC6C0 \uC2DC\uAC04"),
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:14,fontWeight:800,color:interp.color}}, interp.hours, "h")
+    )
+  )), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: 14,
+      padding: "14px 10px 10px",
+      marginBottom: 10,
+      boxShadow: "0 1px 6px rgba(0,0,0,0.06)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: "#6b7280",
+      marginBottom: 8,
+      paddingLeft: 6
+    }
+  }, "\uD56D\uBAA9\uBCC4 \uC218\uD589 \uC218\uC900"), /*#__PURE__*/React.createElement(Radar, {
+    scores: scores,
+    useWc: useWc
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: 14,
+      padding: "14px 16px",
+      marginBottom: 10,
+      boxShadow: "0 1px 6px rgba(0,0,0,0.06)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: "#6b7280",
+      marginBottom: 10
+    }
+  }, "\uD56D\uBAA9\uBCC4 \uC810\uC218"), ITEMS.map((item, idx) => {
+    const d = getData(item),
+      key = getKey(item.id),
+      sc = scores[key];
+    const entry = sc !== undefined ? d.scores.find(s => s.pts === sc) : null;
+    const color = GRADE_COLORS[entry?.label || ""] || "#9ca3af";
+    const vals = [...new Set(d.scores.map(s => s.pts))].sort((a, b) => a - b);
+    return /*#__PURE__*/React.createElement("div", {
+      key: item.id,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        padding: "9px 0",
+        borderBottom: idx < ITEMS.length - 1 ? "1px solid #f3f4f6" : "none"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 18,
+        fontSize: 10,
+        color: "#9ca3af",
+        fontWeight: 600,
+        marginRight: 8
+      }
+    }, item.id), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 16,
+        marginRight: 8
+      }
+    }, d.icon || item.icon), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 12,
+        fontWeight: 600,
+        flex: "0 0 76px",
+        marginRight: 8,
+        color: "#374151"
+      }
+    }, d.kr || item.kr), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 3,
+        flex: 1,
+        justifyContent: "flex-end"
+      }
+    }, vals.map(sv => {
+      const act = sc === sv;
+      return /*#__PURE__*/React.createElement("div", {
+        key: sv,
+        style: {
+          width: 24,
+          height: 24,
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 9,
+          fontWeight: act ? 800 : 400,
+          background: act ? color : "white",
+          color: act ? "white" : "#d1d5db",
+          border: act ? "none" : "1px solid #e5e7eb",
+          transform: act ? "scale(1.15)" : "scale(1)",
+          flexShrink: 0
+        }
+      }, sv);
+    })));
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: 14,
+      padding: "14px 16px",
+      marginBottom: 10,
+      boxShadow: "0 1px 6px rgba(0,0,0,0.06)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: "#6b7280",
+      marginBottom: 10
+    }
+  }, "\uD83D\uDCCB \uD3C9\uC815 \uC694\uC57D"), ITEMS.filter(it => scores[getKey(it.id)] !== undefined).map(it => {
+    const d = getData(it),
+      sc = scores[getKey(it.id)];
+    const e = d.scores.find(s => s.pts === sc);
+    const color = GRADE_COLORS[e?.label || ""] || "#9ca3af";
+    return /*#__PURE__*/React.createElement("div", {
+      key: it.id,
+      style: {
+        marginBottom: 10
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700,
+        color: "#1d1d1f",
+        marginBottom: 2
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color,
+        marginRight: 4
+      }
+    }, "\u25CF"), d.kr || it.kr, " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 400,
+        color: "#6b7280"
+      }
+    }, sc, "\uC810 \xB7 ", e?.label)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: "#6b7280",
+        lineHeight: 1.55,
+        paddingLeft: 14
+      }
+    }, e?.desc));
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: 14,
+      padding: "14px 16px",
+      marginBottom: 10,
+      boxShadow: "0 1px 6px rgba(0,0,0,0.06)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: summaryAI ? 12 : 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: "#6b7280"
+    }
+  }, "\uD83E\uDD16 \uC885\uD569\uD3C9\uC815 (\ubaa8\ub4e0 \ud56d\ubaa9 \uc2dc \ub204\ub974\ub294 \uac83\uc744 \ucd94\ucc9c)"), /*#__PURE__*/React.createElement("button", {
+    onClick: generateSummary,
+    disabled: summaryLoading || done === 0,
+    style: {
+      padding: "5px 12px",
+      borderRadius: 20,
+      border: "none",
+      background: summaryLoading || done === 0 ? "#e5e7eb" : "linear-gradient(135deg,#7c3aed,#4f46e5)",
+      color: summaryLoading || done === 0 ? "#9ca3af" : "white",
+      fontSize: 11,
+      fontWeight: 700,
+      cursor: summaryLoading || done === 0 ? "not-allowed" : "pointer",
+      fontFamily: "inherit"
+    }
+  }, summaryLoading ? "분석 중..." : summaryAI ? "다시 생성" : "ChatGPT 총평 생성")), summaryAI && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: "#374151",
+      lineHeight: 1.8,
+      whiteSpace: "pre-wrap",
+      padding: "10px 12px",
+      background: "#f8f9ff",
+      borderRadius: 10,
+      border: "1px solid #e0e7ff"
+    }
+  }, summaryAI), !summaryAI && !summaryLoading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "#9ca3af",
+      marginTop: 6
+    }
+  }, "\uBC84\uD2BC\uC744 \uB20C\uB7EC AI \uC885\uD569\uD3C9\uC815\uC744 \uC0DD\uC131\uD558\uC138\uC694")),
+  /*#__PURE__*/React.createElement("div", {
+    style: {background:"white", borderRadius:14, padding:"16px 16px", marginBottom:10, boxShadow:"0 1px 6px rgba(0,0,0,0.06)"}
+  },
+    /*#__PURE__*/React.createElement("div", {style:{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10}},
+      /*#__PURE__*/React.createElement("div", {
+        onClick: () => setShowIcfInfo(v => !v),
+        style:{cursor:"pointer"}
+      },
+        /*#__PURE__*/React.createElement("div", {style:{display:"flex", alignItems:"center", gap:6}},
+          /*#__PURE__*/React.createElement("span", {style:{fontSize:12, fontWeight:700, color:"#6b7280"}}, "\uD83E\uDDE0 ICF \uBD84\uB958")
+        ),
+        showIcfInfo && /*#__PURE__*/React.createElement("div", {
+          style:{marginTop:10, padding:"12px 14px", background:"#f8fafc", borderRadius:10, border:"1px solid #e2e8f0"}
+        },
+          /*#__PURE__*/React.createElement("div", {style:{fontSize:12, fontWeight:700, color:"#334155", marginBottom:8}}, "\uc655 ICF\ub97c \uc0ac\uc6a9\ud558\ub294 \uc774\uc720"),
+          /*#__PURE__*/React.createElement("p", {style:{fontSize:11, color:"#475569", lineHeight:1.8, margin:0, marginBottom:10}},
+            "K-MBI \uc810\uc218\ub9cc\uc73c\ub85c\ub294 \uce58\ub8cc\uacc4\ud68d\uc744 \uc138\uc6b0\uae30\uc5d0 \ubd80\uc871\ud569\ub2c8\ub2e4. \uac19\uc740 \ubaa9\uc695 1\uc810\uc774\ub77c\ub3c4 \uadfc\ub825 \uc800\ud558 \ub54c\ubb38\uc778\uc9c0, \uad00\uc808 \uac00\ub3d9\ubc94\uc704 \ubb38\uc81c\uc778\uc9c0, \uc778\uc9c0 \uc800\ud558 \ub54c\ubb38\uc778\uc9c0\uc5d0 \ub530\ub77c \uce58\ub8cc \ubc29\ud5a5\uc774 \uc644\uc804\ud788 \ub2ec\ub77c\uc9d1\ub2c8\ub2e4."
+          ),
+          /*#__PURE__*/React.createElement("div", {style:{fontSize:11, fontWeight:700, color:"#334155", marginBottom:6}}, "ICF\ub294 \uc774 \ucc28\uc774\ub97c \uc124\uba85\ud558\ub294 \uad6d\uc81c \ud45c\uc900 \uc5b8\uc5b4\uc785\ub2c8\ub2e4."),
+          /*#__PURE__*/React.createElement("div", {style:{background:"white", borderRadius:8, padding:"10px 12px", marginBottom:8, border:"1px solid #e2e8f0"}},
+            /*#__PURE__*/React.createElement("div", {style:{fontSize:10, fontWeight:700, color:"#2563eb", marginBottom:4}}, "\ud65c\ub3d9 \uc81c\ud55c (Activity)"),
+            /*#__PURE__*/React.createElement("div", {style:{fontSize:11, color:"#1e40af"}}, "d510 \ubaa9\uc695\ud558\uae30 \u2014 \uc2ec\ud55c \uc81c\ud55c"),
+            /*#__PURE__*/React.createElement("div", {style:{fontSize:10, fontWeight:700, color:"#16a34a", marginTop:6, marginBottom:4}}, "\uc6d0\uc778 (Body Function)"),
+            /*#__PURE__*/React.createElement("div", {style:{fontSize:11, color:"#15803d"}}, "b730 \uadfc\ub825\uae30\ub2a5 \u2014 \uc911\ub4f1\ub3c4 \uc190\uc0c1"),
+            /*#__PURE__*/React.createElement("div", {style:{fontSize:10, fontWeight:700, color:"#ca8a04", marginTop:6, marginBottom:4}}, "\ud658\uacbd\uc694\uc778 (Environment)"),
+            /*#__PURE__*/React.createElement("div", {style:{fontSize:11, color:"#92400e"}}, "e115 \ubcf4\uc870\uae30\uad6c \u2014 \uc7a5\ubcbd (\uc5c6\uc74c)"),
+            /*#__PURE__*/React.createElement("div", {style:{fontSize:11, color:"#92400e", marginTop:2}}, "e310 \uac00\uc871 \u2014 \ucd09\uc9c4\uc694\uc778 (\uc788\uc74c)")
+          ),
+          /*#__PURE__*/React.createElement("p", {style:{fontSize:11, color:"#475569", lineHeight:1.8, margin:0}},
+            "\uc774\ub807\uac8c \uc815\ub9ac\ub418\uba74 \u2018\ub098\uc740 \ubaa9\uc695\uc744 \ubabb\ud558\ub294\ub370 (d510), \uadfc\ub825\uc774 \uc57d\ud574\uc11c (b730), \ubcf4\uc870\uae30\uad6c\uac00 \uc5c6\uc5b4\uc11c \ub354 \uc5b4\ub835\uace0 (e115), \uac00\uc871\uc774 \uc788\uc73c\ub2c8 \uad50\uc721\ud558\uba74 \ub41c\ub2e4 (e310)\u2019\ub294 \uc784\uc0c1 \ucd94\ub860\uc774 ICF \ucf54\ub4dc \ud558\ub098\uc5d0 \ub2f4\uae38\ub2c8\ub2e4. \ub2e8\uc21c\ud55c \uc810\uc218\ub97c \uadfc\uac70 \uc788\ub294 \uce58\ub8cc\uacc4\ud68d\uc73c\ub85c \ubc14\uafb8\ub294 \uac83\uc774 ICF \ub9e4\ud551\uc758 \ud575\uc2ec\uc785\ub2c8\ub2e4."
+          )
+        )
+      ),
+      null
+    ),
+    /*#__PURE__*/React.createElement("div", {style:{background:"white", borderRadius:14, padding:"14px 16px", marginBottom:10, boxShadow:"0 1px 6px rgba(0,0,0,0.06)"}},
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:12, fontWeight:700, color:"#6b7280", marginBottom:10}}, "ICF 활동 분류"),
+      (() => {
+        const ICF_STATIC = [
+          {id:1, kr:"\uac1c\uc778\uc704\uc0dd", code:"d510"},
+          {id:2, kr:"\ubaa9\uc695\ud558\uae30", code:"d510"},
+          {id:3, kr:"\uc2dd\uc0ac\ud558\uae30", code:"d550"},
+          {id:4, kr:"\uc6a9\ubcc0\ucc98\ub9ac", code:"d530"},
+          {id:5, kr:"\uacc4\ub2e8 \uc624\ub974\ub0b4\ub9ac\uae30", code:"d455"},
+          {id:6, kr:"\uc637 \uc785\uace0 \ubc97\uae30", code:"d540"},
+          {id:7, kr:"\ubc30\ubcc0 \uc870\uc808", code:"b525"},
+          {id:8, kr:"\ubc30\ub1a8 \uc870\uc808", code:"b620"},
+          {id:9, kr:"\ubcf4\ud589", code:"d450"},
+          {id:10, kr:"\uc758\uc790\u00b7\uce68\ub300 \uc774\ub3d9", code:"d420"}
+        ];
+        const qColors = ["#16a34a","#65a30d","#ca8a04","#ea580c","#dc2626"];
+        const qLabels = ["문제없음","경미한 제한","중등도 제한","심각한 제한","완전한 제한"];
+        return ICF_STATIC.map(item => {
+          const it = ITEMS.find(x => x.id===item.id);
+          if (!it) return null;
+          const d = getData(it);
+          const sc = scores[getKey(it.id)];
+          if (sc === undefined) return null;
+          const pct = (sc/d.maxPts)*100;
+          const q = pct>=96?0:pct>=75?1:pct>=50?2:pct>=25?3:4;
+          const color = qColors[q];
+          const label = qLabels[q];
+          return /*#__PURE__*/React.createElement("div", {key:item.id, style:{display:"flex", alignItems:"center", marginBottom:6, gap:6}},
+            /*#__PURE__*/React.createElement("div", {style:{width:6, height:6, borderRadius:"50%", background:color, flexShrink:0}}),
+            /*#__PURE__*/React.createElement("span", {style:{fontSize:11, color:"#374151", fontWeight:600, minWidth:80}}, item.kr),
+            /*#__PURE__*/React.createElement("span", {style:{fontSize:10, color:color, fontWeight:700, background:color+"18", padding:"1px 7px", borderRadius:10}}, item.code+"."+q),
+            /*#__PURE__*/React.createElement("span", {style:{fontSize:10, color:color, fontWeight:600}}, label),
+            /*#__PURE__*/React.createElement("span", {style:{fontSize:10, color:"#9ca3af", marginLeft:"auto"}}, sc+"/"+d.maxPts+"점")
+          );
+        });
+      })()
+    ),
+    /*#__PURE__*/React.createElement("div", {style:{marginBottom:12}},
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:11, fontWeight:700, color:"#374151", marginBottom:6, marginTop:4}}, "\uC5F0\uB839\uB300"),
+      /*#__PURE__*/React.createElement("div", {style:{display:"flex", flexWrap:"wrap", gap:6, marginBottom:12}},
+        ["40\uB300\uC774\uD558","50\uB300","60\uB300","70\uB300","80\uB300\uC774\uC0C1"].map(a =>
+          /*#__PURE__*/React.createElement("button", {
+            key:a, onClick:()=>setIcfInfo(p=>({...p,age:p.age===a?"":a})),
+            style:{padding:"4px 10px", borderRadius:20, border:"1.5px solid "+(icfInfo.age===a?"#16a34a":"#e5e7eb"),
+              background:icfInfo.age===a?"#dcfce7":"#fafafa", fontSize:11, fontWeight:600,
+              color:icfInfo.age===a?"#16a34a":"#6b7280", cursor:"pointer", fontFamily:"inherit"}
+          }, a)
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:11, fontWeight:700, color:"#374151", marginBottom:6}}, "\uc9c4\ub2e8"),
+      /*#__PURE__*/React.createElement("div", {style:{display:"flex", flexWrap:"wrap", gap:6, marginBottom:12}},
+        ["뇌졸중","척수손상","골절/관절","노인성","기타"].map(dx =>
+          /*#__PURE__*/React.createElement("button", {
+            key:dx, onClick:()=>setIcfInfo(p=>({...p,diagnosis:p.diagnosis===dx?"":dx})),
+            style:{padding:"4px 10px", borderRadius:20, border:"1.5px solid "+(icfInfo.diagnosis===dx?"#2563eb":"#e5e7eb"),
+              background:icfInfo.diagnosis===dx?"#dbeafe":"#fafafa", fontSize:11, fontWeight:600,
+              color:icfInfo.diagnosis===dx?"#2563eb":"#6b7280", cursor:"pointer", fontFamily:"inherit"}
+          }, dx)
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:11, fontWeight:700, color:"#374151", marginBottom:6}}, "\ubc1c\ubcd1 \uc2dc\uae30"),
+      /*#__PURE__*/React.createElement("div", {style:{display:"flex", flexWrap:"wrap", gap:6, marginBottom:12}},
+        ["1\uac1c\uc6d4 \uc774\ub0b4 (\uae09\uc131\uae30)","6\uac1c\uc6d4 \uc774\ub0b4 (\uc544\uae09\uc131\uae30)","6\uac1c\uc6d4 \uc774\uc0c1 (\ub9cc\uc131\uae30)"].map(o =>
+          /*#__PURE__*/React.createElement("button", {
+            key:o, onClick:()=>setIcfInfo(p=>({...p,onset:p.onset===o?"":o})),
+            style:{padding:"4px 10px", borderRadius:20, border:"1.5px solid "+(icfInfo.onset===o?"#ca8a04":"#e5e7eb"),
+              background:icfInfo.onset===o?"#fef9c3":"#fafafa", fontSize:11, fontWeight:600,
+              color:icfInfo.onset===o?"#ca8a04":"#6b7280", cursor:"pointer", fontFamily:"inherit"}
+          }, o)
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:11, fontWeight:700, color:"#374151", marginBottom:6}}, "\uc778\uc9c0 \uae30\ub2a5"),
+      /*#__PURE__*/React.createElement("div", {style:{display:"flex", flexWrap:"wrap", gap:6, marginBottom:12}},
+        ["\uc815\uc0c1","\uacbd\ub3c4 \uc800\ud558","\uc911\ub4f1\ub3c4 \uc800\ud558"].map(cog =>
+          /*#__PURE__*/React.createElement("button", {
+            key:cog, onClick:()=>setIcfInfo(p=>({...p,cognition:p.cognition===cog?"":cog})),
+            style:{padding:"4px 10px", borderRadius:20, border:"1.5px solid "+(icfInfo.cognition===cog?"#7c3aed":"#e5e7eb"),
+              background:icfInfo.cognition===cog?"#ede9fe":"#fafafa", fontSize:11, fontWeight:600,
+              color:icfInfo.cognition===cog?"#7c3aed":"#6b7280", cursor:"pointer", fontFamily:"inherit"}
+          }, cog)
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:11, fontWeight:700, color:"#374151", marginBottom:6}}, "\ubcf4\uc870\uc790"),
+      /*#__PURE__*/React.createElement("div", {style:{display:"flex", flexWrap:"wrap", gap:6, marginBottom:12}},
+        ["24\uc2dc\uac04 \ubcf4\uc870 \uc788\uc74c","\ubd80\ubd84 \ubcf4\uc870 \uc788\uc74c","\ubcf4\uc870\uc790 \uc5c6\uc74c"].map(cg =>
+          /*#__PURE__*/React.createElement("button", {
+            key:cg, onClick:()=>setIcfInfo(p=>({...p,caregiver:p.caregiver===cg?"":cg})),
+            style:{padding:"4px 10px", borderRadius:20, border:"1.5px solid "+(icfInfo.caregiver===cg?"#ea580c":"#e5e7eb"),
+              background:icfInfo.caregiver===cg?"#ffedd5":"#fafafa", fontSize:11, fontWeight:600,
+              color:icfInfo.caregiver===cg?"#ea580c":"#6b7280", cursor:"pointer", fontFamily:"inherit"}
+          }, cg)
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", {style:{fontSize:11, fontWeight:700, color:"#374151", marginBottom:6}}, "\uc8fc\uac70 \ud658\uacbd"),
+      /*#__PURE__*/React.createElement("div", {style:{display:"flex", flexWrap:"wrap", gap:6, marginBottom:4}},
+        ["\ub3c5\uac70 (\ud63c\uc790)","\uac00\uc871\uacfc \ud568\uaed8","\uc694\uc591\uc6d0/\ubcd1\uc6d0"].map(hv =>
+          /*#__PURE__*/React.createElement("button", {
+            key:hv, onClick:()=>setIcfInfo(p=>({...p,housing:p.housing===hv?"":hv})),
+            style:{padding:"4px 10px", borderRadius:20, border:"1.5px solid "+(icfInfo.housing===hv?"#0d9488":"#e5e7eb"),
+              background:icfInfo.housing===hv?"#ccfbf1":"#fafafa", fontSize:11, fontWeight:600,
+              color:icfInfo.housing===hv?"#0d9488":"#6b7280", cursor:"pointer", fontFamily:"inherit"}
+          }, hv)
+        )
+      )
+    ),
+    /*#__PURE__*/React.createElement("div", {style:{display:"flex", justifyContent:"flex-end", marginTop:8, marginBottom:4}},
+      /*#__PURE__*/React.createElement("button", {
+        onClick: generateIcf,
+        disabled: icfLoading || done === 0,
+        style:{padding:"7px 16px", borderRadius:20, border:"none",
+          background: icfLoading||done===0 ? "#e5e7eb" : "linear-gradient(135deg,#16a34a,#0d9488)",
+          color: icfLoading||done===0 ? "#9ca3af" : "white",
+          fontSize:11, fontWeight:700, cursor:icfLoading||done===0?"not-allowed":"pointer", fontFamily:"inherit"}
+      }, icfLoading ? "분석 중..." : icfAI ? "다시 분석" : "🎯 활동분석 기반 목표 설정")
+    ),
+    icfData && /*#__PURE__*/React.createElement("div", {style:{marginTop:8}},
+      /*#__PURE__*/React.createElement("div", {style:{background:"#eff6ff", borderRadius:12, padding:"12px 14px", border:"1px solid #bfdbfe", marginBottom:8}},
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:11, fontWeight:800, color:"#2563eb", marginBottom:6}}, "ICF 요약"),
+        icfData.icf?.body && /*#__PURE__*/React.createElement("div", {style:{fontSize:11, color:"#1e40af", lineHeight:1.7, marginBottom:4}}, icfData.icf.body),
+        icfData.icf?.participation && /*#__PURE__*/React.createElement("div", {style:{fontSize:10, color:"#6b7280", marginBottom:2}}, "참여: "+icfData.icf.participation),
+        icfData.icf?.environment && /*#__PURE__*/React.createElement("div", {style:{fontSize:10, color:"#6b7280"}}, "환경: "+icfData.icf.environment)
+      ),
+      icfData.goals && icfData.goals.map((g, i) => /*#__PURE__*/React.createElement("div", {
+        key:i, style:{background:"white", borderRadius:12, padding:"14px", border:"1px solid #e2e8f0", marginBottom:8, boxShadow:"0 1px 4px rgba(0,0,0,0.04)"}
+      },
+        /*#__PURE__*/React.createElement("div", {style:{display:"flex", alignItems:"center", gap:8, marginBottom:8}},
+          /*#__PURE__*/React.createElement("span", {style:{fontSize:12, fontWeight:800, color:"#1e293b"}}, g.item),
+          /*#__PURE__*/React.createElement("span", {style:{fontSize:10, background:"#fee2e2", color:"#991b1b", padding:"2px 8px", borderRadius:10, fontWeight:700}}, g.current),
+          /*#__PURE__*/React.createElement("span", {style:{fontSize:10, color:"#94a3b8"}}, "→"),
+          /*#__PURE__*/React.createElement("span", {style:{fontSize:10, background:"#dcfce7", color:"#166534", padding:"2px 8px", borderRadius:10, fontWeight:700}}, g.target)
+        ),
+        g.target_criteria && /*#__PURE__*/React.createElement("div", {style:{fontSize:10, color:"#475569", background:"#f8fafc", borderRadius:8, padding:"6px 10px", marginBottom:8, lineHeight:1.6}},
+          /*#__PURE__*/React.createElement("span", {style:{fontWeight:700, color:"#16a34a"}}, "목표 달성 기준: "), g.target_criteria
+        ),
+        g.short_goals && /*#__PURE__*/React.createElement("div", {style:{marginBottom:6}},
+          /*#__PURE__*/React.createElement("div", {style:{fontSize:10, fontWeight:700, color:"#ca8a04", marginBottom:4}}, "단기목표"),
+          g.short_goals.map((sg, j) => /*#__PURE__*/React.createElement("div", {key:j, style:{fontSize:11, color:"#92400e", marginBottom:3, display:"flex", gap:4}},
+            /*#__PURE__*/React.createElement("span", {style:{color:"#ca8a04", fontWeight:700}}, "•"),
+            /*#__PURE__*/React.createElement("span", null, sg)
+          ))
+        ),
+        g.activities && /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", {style:{fontSize:10, fontWeight:700, color:"#0369a1", marginBottom:4}}, "훈련 활동"),
+          /*#__PURE__*/React.createElement("div", {style:{display:"flex", flexWrap:"wrap", gap:4}},
+            g.activities.map((a, j) => /*#__PURE__*/React.createElement("span", {
+              key:j, style:{fontSize:10, background:"#eff6ff", color:"#1d4ed8", padding:"2px 8px", borderRadius:20, border:"1px solid #bfdbfe"}
+            }, a))
+          )
+        )
+      )),
+      icfData.recommendation && /*#__PURE__*/React.createElement("div", {style:{background:"#fdf4ff", borderRadius:12, padding:"12px 14px", border:"1px solid #e9d5ff"}},
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:11, fontWeight:800, color:"#7c3aed", marginBottom:4}}, "치료 방향"),
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:11, color:"#6d28d9", lineHeight:1.6}}, icfData.recommendation)
+      )
+    ),
+    !icfAI && !icfLoading && /*#__PURE__*/React.createElement("div", {
+      style:{fontSize:11, color:"#9ca3af", marginTop:2}
+    }, "환자 정보 입력 없이도 MBI 점수 기반으로 분석 가능합니다")
+  ), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "white",
+      borderRadius: 14,
+      padding: "14px 16px",
+      marginBottom: 10,
+      boxShadow: "0 1px 6px rgba(0,0,0,0.06)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 10
+    }
+  },
+    /*#__PURE__*/React.createElement("span", {style:{fontSize:12,fontWeight:700,color:"#6b7280"}}, "\uC810\uC218 \uD574\uC11D \uAE30\uC900"),
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setShowAllInterp(v => !v),
+      style:{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:20,border:"none",
+        background:showAllInterp?"#e5e7eb":"#fed7aa",
+        color:showAllInterp?"#6b7280":"#9a3412",cursor:"pointer",fontFamily:"inherit"}
+    }, showAllInterp ? "\uD604\uC7AC\uB9CC \uBCF4\uAE30" : "\uC804\uCCB4\uBCF4\uAE30")
+  ), (showAllInterp ? INTERP : INTERP.filter(r => total >= r.min && total <= r.max)).map(function(r) {
+    const isCur = total >= r.min && total <= r.max;
+    return /*#__PURE__*/React.createElement("div", {
+      key: r.en || r.label,
+      style:{display:"flex",alignItems:"center",padding:"9px 12px",borderRadius:10,
+        background:isCur?r.pastel:"#fafafa",
+        border:"1.5px solid "+(isCur?r.color:"#f3f4f6"),
+        marginBottom:6}
+    },
+      /*#__PURE__*/React.createElement("div", {style:{width:12,height:12,borderRadius:"50%",background:r.color,flexShrink:0,marginRight:8}}),
+      /*#__PURE__*/React.createElement("div", {style:{flex:1}},
+        /*#__PURE__*/React.createElement("div", {style:{display:"flex",alignItems:"center",gap:6}},
+          /*#__PURE__*/React.createElement("span", {style:{fontSize:12,fontWeight:isCur?800:600,color:r.color}}, r.en || r.label),
+          /*#__PURE__*/React.createElement("span", {style:{fontSize:10,color:isCur?r.color:"#9ca3af",fontWeight:600}},
+            r.min===r.max ? r.min+"\uC810" : r.min+"~"+r.max+"\uC810")
+        )
+      ),
+      r.hours && r.hours!=="-" && /*#__PURE__*/React.createElement("span", {style:{fontSize:10,color:"#9ca3af",marginLeft:"auto",marginRight:6,whiteSpace:"nowrap"}},
+        "/ \uC8FC\uB2F9\uD544\uC694\uC2DC\uAC04: ", r.hours, "h"),
+      isCur && /*#__PURE__*/React.createElement("span", {style:{fontSize:10,fontWeight:800,color:"white",background:r.color,padding:"2px 8px",borderRadius:20}}, "\u2713 \uD604\uC7AC")
+    );
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: () => { setPage("home"); window.scrollTo(0,0); },
+    style: {
+      display: "block",
+      width: "100%",
+      padding: "13px",
+      background: "#1a3a6e",
+      color: "white",
+      border: "none",
+      borderRadius: 14,
+      fontSize: 14,
+      fontWeight: 700,
+      cursor: "pointer",
+      textAlign: "center",
+      fontFamily: "inherit",
+      marginBottom: 16
+    }
+  }, "\u2190 \uCC98\uC74C\uC73C\uB85C"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "4px 0"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: "#9ca3af",
+      marginBottom: 8
+    }
+  }, "References"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "#9ca3af",
+      lineHeight: 2.0
+    }
+  },
+    "American Occupational Therapy Association. (2020). Occupational therapy practice framework: Domain and process (4th ed.). ",
+    /*#__PURE__*/React.createElement("em", null, "American Journal of Occupational Therapy, 74"),
+    "(Suppl. 2), 7412410010.",
+    /*#__PURE__*/React.createElement("br", null),
+    "Fisher, A. G. (2009). ",
+    /*#__PURE__*/React.createElement("em", null, "Occupational therapy intervention process model"),
+    ". Three Star Press.",
+    /*#__PURE__*/React.createElement("br", null),
+    "\uc774\uc7ac\uc2e0, \uc774\uc0c1\ud5cc. (2014). ICF core-set\uc744 \uc774\uc6a9\ud55c \ub1cc\uc5f8\uc911 \ud658\uc790\uc758 \uae30\ub2a5\uc218\ud589 \ubd84\uc11d. ",
+    /*#__PURE__*/React.createElement("em", null, "\ub300\ud55c\uc791\uc5c5\uce58\ub8cc\ud559\ud68c\uc9c0, 22"),
+    "(3).",
+    /*#__PURE__*/React.createElement("br", null),
+    "\uc815\ud55c\uc601, \ud55c\ud0dc\ub9bc, \ubc15\ubcd1\uaddc, \uc774\uc0c1\ud5cc, \uc815\uc138\uc218, \uc774\uc5f0\uc138. (2007). \ud55c\uad6d\ud310 \uc218\uc815 \ubc14\ub378 \uc9c0\uc218(K-MBI) \uac1c\ubc1c: \ub2e4\uae30\uad00 \uc5f0\uad6c. ",
+    /*#__PURE__*/React.createElement("em", null, "\ub300\ud55c\uc7ac\ud65c\uc758\ud559\ud68c\uc9c0, 31"),
+    "(3), 283-291.",
+    /*#__PURE__*/React.createElement("br", null),
+    "Shah, S., Vanclay, F., & Cooper, B. (1989). Improving the sensitivity of the Barthel Index for stroke rehabilitation. ",
+    /*#__PURE__*/React.createElement("em", null, "Journal of Clinical Epidemiology, 42"),
+    "(8), 703-709.",
+    /*#__PURE__*/React.createElement("br", null),
+    "\uc1a1\uc601\uc9c4, \ucd5c\ubbfc\uacbd, \uae40\uc885\uc131. \ud65c\ub3d9\ubd84\uc11d\uacfc \ud504\ub85c\uc138\uacf1 \ub9f5\ud551\uc744 \ud1b5\ud55c MBI Scoring Guide Book. \uc791\uc5c5\uce58\ub8cc\uc2e4.",
+    /*#__PURE__*/React.createElement("br", null),
+    "World Health Organization. (2001). ",
+    /*#__PURE__*/React.createElement("em", null, "International classification of functioning, disability and health (ICF)"),
+    ". WHO."
+  ))));
+}
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(React.createElement(App));
+</script></body></html>
